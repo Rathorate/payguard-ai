@@ -1,0 +1,155 @@
+const $ = (selector, root = document) => root.querySelector(selector);
+const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+const state = {csrf: '', user: null, demo: false, status: '', page: 1, q: '', detail: null, view: 'disputes', loadId: 0};
+const labels = {OPEN: 'Needs evidence', REVIEW: 'In review', APPROVED: 'Ready to send', SUBMITTED: 'Submitted', RESOLVED: 'Resolved', SUBMITTING: 'Sending', SUBMISSION_UNKNOWN: 'Needs reconciliation'};
+const reasons = {MERCHANDISE_OR_SERVICE_NOT_RECEIVED: 'Item not received', MERCHANDISE_OR_SERVICE_NOT_AS_DESCRIBED: 'Not as described', UNAUTHORIZED_TRANSACTION: 'Unauthorized transaction', UNAUTHORISED: 'Unauthorized transaction', NOT_RECOGNISED: 'Not recognized', NOT_RECOGNIZED: 'Not recognized', INQUIRY: 'Customer inquiry'};
+const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money = (cents, currency = 'USD') => {try {return new Intl.NumberFormat('en-US', {style:'currency',currency}).format(cents / 100);} catch {return `${(cents / 100).toFixed(2)} ${currency}`;}};
+const date = seconds => seconds ? new Date(seconds * 1000).toLocaleDateString(undefined, {month:'short',day:'numeric',year:'numeric'}) : 'Check PayPal';
+const badge = status => `<span class="badge ${escape(status)}">${escape(labels[status] || status)}</span>`;
+let toastTimer;
+function toast(message) {$('#toast').textContent = message; $('#toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => $('#toast').hidden = true, 6500);}
+
+async function api(path, options = {}) {
+  const headers = {'X-CSRF-Token': state.csrf, ...options.headers};
+  if (options.body && !(options.body instanceof FormData)) {headers['Content-Type'] = 'application/json'; options.body = JSON.stringify(options.body);}
+  const response = await fetch('/api/v1' + path, {...options, headers, credentials:'same-origin'});
+  if (response.status === 204) return null;
+  const data = await response.json();
+  if (!response.ok) {
+    if (response.status === 401 && !path.startsWith('/auth/')) {state.user = null; $('#workspace').hidden = true; $('#login-view').hidden = false;}
+    throw new Error(typeof data.detail === 'string' ? data.detail : data.detail?.map(e => `${e.loc.slice(1).join('.')}: ${e.msg}`).join('; ') || 'Request failed');
+  }
+  return data;
+}
+
+async function busy(button, task) {
+  if (button.disabled) return;
+  button.disabled = true;
+  const text = button.textContent;
+  button.textContent = 'Working…';
+  try {await task();} catch(error) {toast(error.message);} finally {if (button.isConnected) {button.disabled = false; button.textContent = text;}}
+}
+
+async function enter(user) {
+  state.user = user; state.csrf = user.csrf; state.demo = user.demo;
+  $('#login-view').hidden = true; $('#workspace').hidden = false;
+  $('#profile-label').textContent = user.demo ? 'Interactive demo' : user.email;
+  $('#mode-badge').textContent = user.demo ? 'Demo · simulated submissions' : 'Merchant workspace';
+  await loadView();
+}
+
+let registration = false;
+$('#auth-toggle').addEventListener('click', () => {
+  registration = !registration;
+  $('#company-label').hidden = !registration;
+  $('[name=company]').required = registration;
+  $('#auth-title').textContent = registration ? 'Make room for clarity.' : 'Welcome back.';
+  $('#auth-intro').textContent = registration ? 'Create your merchant workspace.' : 'Your next response starts here.';
+  $('#auth-submit').textContent = registration ? 'Create workspace →' : 'Sign in →';
+  $('[name=password]').autocomplete = registration ? 'new-password' : 'current-password';
+  $('#auth-toggle').textContent = registration ? 'Already have a workspace? Sign in' : 'New here? Create a workspace';
+});
+$('#auth-form').addEventListener('submit', async event => {
+  event.preventDefault(); $('#auth-error').textContent = '';
+  const form = Object.fromEntries(new FormData(event.target));
+  if (!registration) delete form.company;
+  await busy($('#auth-submit'), async () => {
+    try {await enter(await api(registration ? '/auth/register' : '/auth/login', {method:'POST',body:form})); event.target.reset();}
+    catch(error) {$('#auth-error').textContent = error.message;}
+  });
+});
+$('#demo-login').addEventListener('click', event => busy(event.currentTarget, async () => enter(await api('/auth/demo', {method:'POST'}))));
+$('#logout').addEventListener('click', event => busy(event.currentTarget, async () => {await api('/auth/logout', {method:'POST'}); state.user = null; state.csrf = ''; $('#workspace').hidden = true; $('#login-view').hidden = false;}));
+
+async function loadView() {
+  const views = ['disputes', 'audit', 'integrations'];
+  for (const view of views) $(`#${view}-view`).hidden = view !== state.view;
+  $$('.nav').forEach(button => button.classList.toggle('active', button.dataset.view === state.view));
+  const title = {disputes:'Dispute inbox',audit:'Activity log',integrations:'Integrations'}[state.view];
+  $('#page-title').textContent = title + '.'; $('#breadcrumb').textContent = title;
+  $('#page-subtitle').textContent = {disputes:'A clear path from open case to a considered response.',audit:'A record of every meaningful step in your workspace.',integrations:'The services behind a more connected workflow.'}[state.view];
+  $('#new-case').hidden = state.view !== 'disputes';
+  if (state.view === 'disputes') return loadCases();
+  if (state.view === 'audit') {
+    const data = await api('/audit');
+    $('#audit-list').innerHTML = data.items.length ? data.items.map(x => `<div class="audit-row"><div>${escape(x.action.replaceAll('_',' ').toLowerCase())}<small>${escape(x.actor)} · ${escape(x.resource_id)}</small></div><time>${escape(new Date(x.created_at*1000).toLocaleString())}</time></div>`).join('') : '<div class="empty">Your workspace activity will appear here.</div>';
+  } else {
+    const data = await api('/integrations');
+    const cards = [
+      ['PayPal',data.paypal_configured,`Dispute ingestion and merchant evidence submission. Environment: ${data.paypal_environment}. ${state.demo ? 'Submission is simulated in demo mode.' : ''}`],
+      ['AI drafting',data.ai_configured,'Optional OpenAI drafting from supplied evidence. Without a key, a deterministic template is used.'],
+      ['Carrier verification',false,'Tracking statements can be recorded manually. No independent carrier verification is connected.'],
+      ['Document extraction',true,'Text PDFs are supported. Scanned documents and images require a separate OCR service.']
+    ];
+    $('#integration-cards').innerHTML = cards.map(([name,configured,description]) => `<div class="integration-card"><span class="badge ${configured?'APPROVED':''}">${configured?'Configured':'Not connected'}</span><h2>${escape(name)}</h2><p>${escape(description)}</p></div>`).join('');
+  }
+}
+
+async function loadCases() {
+  const loadId = ++state.loadId;
+  const [data, overview] = await Promise.all([api('/disputes?' + new URLSearchParams({q:state.q,status:state.status,page:state.page,limit:10})),api('/overview')]);
+  if (loadId !== state.loadId) return;
+  const groups = overview.groups;
+  const count = groups.reduce((sum,g)=>sum+g.count,0);
+  const openGroups = groups.filter(g=>!['SUBMITTED','RESOLVED'].includes(g.status));
+  const atRisk = Object.entries(openGroups.reduce((totals,g)=>({...totals,[g.currency]:(totals[g.currency]||0)+g.amount_cents}),{})).map(([c,a])=>money(a,c));
+  const stats = [
+    ['Active disputes', openGroups.reduce((n,g)=>n+g.count,0), 'Cases awaiting your next step', '◇'],
+    ['Amount at stake', atRisk.join(' + ') || money(0), atRisk.length>1 ? 'Amounts shown separately by currency' : 'Across active disputes', '↗'],
+    ['Ready to send', groups.filter(g=>g.status==='APPROVED').reduce((n,g)=>n+g.count,0), 'Reviewed and approved by you', '✓'],
+    ['Responses submitted', groups.filter(g=>g.status==='SUBMITTED').reduce((n,g)=>n+g.count,0), state.demo ? 'Simulated in this demo' : 'Sent for provider review', '↗']
+  ];
+  $('#stats').innerHTML = stats.map(([label,value,foot,icon],i)=>`<div class="stat ${i===1?'highlight':''}"><span class="stat-label">${label}<span class="stat-icon">${icon}</span></span><b class="stat-value">${escape(value)}</b><span class="stat-foot">${foot}</span></div>`).join('');
+  $('#nav-count').textContent = count; $('#result-count').textContent = data.total;
+  $('#case-rows').innerHTML = data.items.map(d => {
+    const days = Math.ceil((d.due_at*1000-Date.now())/86400000);
+    const initials = d.customer.split(' ').map(x=>x[0]).slice(0,2).join('');
+    return `<tr><td><div class="customer-cell"><span class="customer-avatar">${escape(initials)}</span><div><span class="case-name">${escape(d.customer)}</span><span class="case-id">${escape(d.paypal_id)}</span></div></div></td><td><span class="reason-label">${escape(reasons[d.reason]||d.reason)}</span></td><td><span class="money">${escape(money(d.amount_cents,d.currency))}</span></td><td><span class="deadline ${days<=2?'urgent':''}">${escape(date(d.due_at))}<small>${d.due_at ? (days<0?'Deadline passed':days===0?'Due today':`${days} day${days===1?'':'s'} remaining`) : 'Deadline unavailable'}</small></span></td><td>${badge(d.status)}</td><td><button class="row-open" data-id="${escape(d.id)}" aria-label="Open case for ${escape(d.customer)}">↗</button></td></tr>`;
+  }).join('');
+  $('#empty-state').hidden = data.items.length > 0;
+  $('#pagination-label').textContent = data.total ? `Showing ${(state.page-1)*10+1}–${Math.min(state.page*10,data.total)} of ${data.total} cases` : '0 cases';
+  $('#prev-page').disabled = state.page <= 1; $('#next-page').disabled = state.page*10 >= data.total;
+}
+
+$$('.nav').forEach(button => button.addEventListener('click', () => {state.view = button.dataset.view; loadView().catch(e=>toast(e.message));}));
+$('#refresh').addEventListener('click', event => busy(event.currentTarget, loadView));
+$$('.tab').forEach(button => button.addEventListener('click', () => {state.status = button.dataset.status; state.page=1; $$('.tab').forEach(x=>x.classList.toggle('active',x===button)); loadCases().catch(e=>toast(e.message));}));
+let searchTimer;
+$('#search').addEventListener('input', event => {clearTimeout(searchTimer);state.q=event.target.value;state.page=1;searchTimer=setTimeout(()=>loadCases().catch(e=>toast(e.message)),250);});
+$('#prev-page').addEventListener('click', ()=>{state.page--;loadCases().catch(e=>toast(e.message));});
+$('#next-page').addEventListener('click', ()=>{state.page++;loadCases().catch(e=>toast(e.message));});
+$('#case-rows').addEventListener('click', event => {const button=event.target.closest('[data-id]');if(button)openCase(button.dataset.id).catch(e=>toast(e.message));});
+
+async function openCase(id) {
+  const d = await api(`/disputes/${id}`); state.detail=d;
+  $('#detail-title').textContent = d.paypal_id;
+  const locked = ['SUBMITTED','RESOLVED','SUBMITTING','SUBMISSION_UNKNOWN'].includes(d.status);
+  $('#detail-content').innerHTML = `<div class="detail-body">${badge(d.status)}<div class="detail-meta"><div><span>Customer</span><b>${escape(d.customer)}</b></div><div><span>Disputed amount</span><b>${escape(money(d.amount_cents,d.currency))}</b></div><div><span>Response deadline</span><b>${escape(date(d.due_at))}</b></div></div><p class="small muted">${escape(reasons[d.reason]||d.reason)}</p>
+    <section class="section-box"><div class="section-top"><h3><span class="step">1</span> Evidence collection</h3><span class="count">${d.evidence.length} items</span></div><p class="muted">Recorded merchant statements. Delivery and eligibility have not been independently verified.</p>${d.evidence.map(e=>`<details class="evidence-item"><summary>${escape(e.title)} <span class="badge">${escape(e.kind)}</span></summary><p>${escape(e.content)}</p><small>Evidence ID: ${escape(e.id)}</small></details>`).join('') || '<p class="muted">No evidence yet. Add your first record below.</p>'}
+    ${!locked?`<details class="evidence-item"><summary>+ Add a record</summary><form id="evidence-form"><label>Title<input name="title" required minlength="2" maxlength="160" placeholder="Order invoice or delivery statement"></label><label>Type<select name="kind"><option>INVOICE</option><option>TRACKING</option><option>COMMUNICATION</option><option>OTHER</option></select></label><label>Facts / source text<textarea name="content" required minlength="5" maxlength="8000" placeholder="Paste the relevant facts and source details. Do not include unnecessary personal information."></textarea></label><button class="secondary">Save evidence</button></form></details><form id="upload-form"><label class="upload-label">Or extract text from a PDF<input name="file" type="file" accept="application/pdf" required><small>Up to 5 MB / 20 pages. Image-only documents need OCR.</small></label><button class="secondary compact">Extract & add</button></form>`:''}</section>
+    <section class="section-box"><div class="section-top"><h3><span class="step">2</span> Response draft</h3>${!locked?'<button class="secondary compact" id="generate-draft">✦ Generate draft</button>':''}</div><p class="muted">${d.draft_source==='OPENAI'?'AI-generated draft. Verify every assertion and evidence reference.':d.draft_source==='MERCHANT'?'Edited by merchant. Review before approval.':'Template drafting works without an API key. AI drafting is optional.'}</p><label for="draft-text" class="sr-only">Defense draft</label><textarea id="draft-text" rows="10" maxlength="12000" placeholder="Add evidence, then generate or write your response." ${locked?'readonly':''}>${escape(d.draft)}</textarea>${!locked?'<div class="actions"><button class="secondary" id="save-draft">Save edits</button></div>':''}</section>
+    <section class="section-box"><h3><span class="step">3</span> Review & respond</h3><p class="muted">Approval applies to the current version. Changing evidence or the draft requires a new review.</p>${d.status==='REVIEW'?'<label class="check-label"><input type="checkbox" id="review-check">I checked the facts, evidence references, and response deadline.</label><button class="primary" id="approve-draft">Approve response →</button>':''}${d.status==='APPROVED'?`<label class="check-label"><input type="checkbox" id="submit-check">${state.demo?'I understand this simulates submission.':'I confirm this response should be sent to PayPal.'}</label><button class="primary" id="submit-case">${state.demo?'Simulate submission':'Send response to PayPal'} →</button>`:''}${d.status==='OPEN'?'<p class="notice">Add evidence and save a draft to start your review.</p>':''}${d.status==='SUBMITTED'?`<p class="notice">${state.demo?'Demo submission complete. Nothing was sent to PayPal.':'Response sent to PayPal for review. Submission does not mean the dispute is won.'}</p>`:''}${['SUBMISSION_UNKNOWN','SUBMITTING'].includes(d.status)?'<p class="notice">This case needs reconciliation. Check PayPal and the submission record before taking further action. Automatic retries are disabled.</p>':''}${d.status==='RESOLVED'?'<p class="notice">PayPal reports this case is resolved.</p>':''}</section><p class="small muted">Case version ${d.version} · No automated eligibility or win-rate assessment.</p></div>`;
+  const dialog=$('#case-dialog'); if(!dialog.open)dialog.showModal();
+  const rerender = async message => {await openCase(id);await loadCases();toast(message);};
+  const version=()=>state.detail.version;
+  $('#evidence-form')?.addEventListener('submit',event=>{event.preventDefault();busy($('button',event.target),async()=>{await api(`/disputes/${id}/evidence`,{method:'POST',body:{...Object.fromEntries(new FormData(event.target)),version:version()}});await rerender('Evidence added. Any previous approval has been cleared.');});});
+  $('#upload-form')?.addEventListener('submit',event=>{event.preventDefault();busy($('button',event.target),async()=>{const data=new FormData(event.target);data.set('version',version());await api(`/disputes/${id}/upload`,{method:'POST',body:data});await rerender('PDF text added as evidence.');});});
+  $('#generate-draft')?.addEventListener('click',event=>busy(event.currentTarget,async()=>{if($('#draft-text').value!==state.detail.draft){toast('Save your edits before generating another draft.');return;}await api(`/disputes/${id}/draft`,{method:'POST',body:{version:version()}});await rerender('Draft created. Review it before approving.');}));
+  $('#save-draft')?.addEventListener('click',event=>busy(event.currentTarget,async()=>{await api(`/disputes/${id}/draft`,{method:'PUT',body:{version:version(),text:$('#draft-text').value}});await rerender('Draft edits saved.');}));
+  $('#approve-draft')?.addEventListener('click',event=>busy(event.currentTarget,async()=>{if(!$('#review-check').checked)throw new Error('Confirm that you have reviewed the response.');if($('#draft-text').value!==state.detail.draft)throw new Error('Save your draft edits before approving.');await api(`/disputes/${id}/approve`,{method:'POST',body:{version:version(),reviewed:true}});await rerender('Response approved. Ready for your submission.');}));
+  $('#submit-case')?.addEventListener('click',event=>busy(event.currentTarget,async()=>{if(!$('#submit-check').checked)throw new Error('Confirm submission using the checkbox.');if($('#draft-text').value!==state.detail.draft)throw new Error('Save and approve your latest edits before submission.');const result=await api(`/disputes/${id}/submit`,{method:'POST',headers:{'Idempotency-Key':`submit-${id}-${version()}`},body:{version:version(),confirmed:true}});await rerender(result.state==='UNKNOWN'?'Provider result is unknown. Reconcile in PayPal before retrying.':state.demo?'Submission simulated successfully.':'Response sent for provider review.');}));
+}
+$('#close-case').addEventListener('click',()=>$('#case-dialog').close());
+$('#new-case').addEventListener('click',()=>{$('#new-error').textContent='';$('#new-dialog').showModal();});
+$('#close-new').addEventListener('click',()=>$('#new-dialog').close());
+$('#new-form').addEventListener('submit',event=>{event.preventDefault();busy($('button',event.target),async()=>{
+  const data=Object.fromEntries(new FormData(event.target));
+  const body={paypal_id:data.paypal_id,customer:data.customer,reason:data.reason,amount_cents:Math.round(Number(data.amount)*100),currency:'USD',due_at:Math.floor(new Date(data.due).getTime()/1000)};
+  try {const d=await api('/disputes',{method:'POST',body});$('#new-dialog').close();event.target.reset();state.page=1;state.status='';$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.status===''));await loadCases();await openCase(d.id);}catch(error){$('#new-error').textContent=error.message;}
+});});
+
+try {
+  const config=await api('/config');$('#demo-option').hidden=!config.demo;
+  try {await enter(await api('/auth/me'));} catch(error) {if(error.message!=='Sign in required')toast(error.message);}
+} catch(error) {$('#auth-error').textContent='Unable to reach the server. '+error.message;}

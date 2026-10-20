@@ -1,0 +1,2 @@
+/* System fonts keep the workspace private and available without external CDNs. */
+html{color-scheme:light}::selection{background:#cde8ba;color:#164b39}

@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+sqlalchemy
+httpx
+python-multipart
+psycopg[binary]
+pypdf
+pytest
+pytest-cov
+reportlab

@@ -1,0 +1,31 @@
+name: PayGuard checks
+on: [push, pull_request]
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: payguard
+          POSTGRES_PASSWORD: test-only-password
+          POSTGRES_DB: payguard
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U payguard"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: pip install -r requirements.txt
+      - run: python -m pytest --cov=app --cov-report=term-missing --cov-report=xml
+      - run: python -m pytest tests/test_postgres.py
+        env:
+          TEST_POSTGRES_URL: postgresql+psycopg://payguard:test-only-password@localhost/payguard
+      - run: node --check static/app.js
