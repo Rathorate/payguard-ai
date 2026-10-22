@@ -48,6 +48,16 @@ class DraftEdit(Version):
     text: str = Field(min_length=20, max_length=12000)
 
 
+class ConversationTurn(Input):
+    role: Literal['user', 'assistant']
+    content: str = Field(min_length=1, max_length=3000)
+
+
+class CaseQuestion(Version):
+    question: str = Field(min_length=5, max_length=1000)
+    history: list[ConversationTurn] = Field(default_factory=list, max_length=6)
+
+
 class Approval(Version):
     reviewed: Literal[True]
 

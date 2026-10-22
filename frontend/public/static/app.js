@@ -1,4 +1,5 @@
 import {renderReview, revealEvidence} from './review-ui.js';
+import {questionPanel,renderConversation} from './questions-ui.js';
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const state = {csrf: '', user: null, demo: false, status: '', page: 1, q: '', detail: null, view: 'disputes', loadId: 0, ai: null};
@@ -12,6 +13,7 @@ let toastTimer;
 let casePending=false;
 let caseRequest=0;
 const caseLocks=new Map();
+const caseConversations=new Map();
 function lockCaseControls(){
   for(const control of $$('button,input,textarea,select',$('#case-dialog'))){
     if(!caseLocks.has(control))caseLocks.set(control,control.disabled);
@@ -43,7 +45,7 @@ async function api(path, options = {}) {
   try {data = await response.json();}
   catch {throw new Error(`The server returned an unexpected response (${response.status}). Check the backend connection.`);}
   if (!response.ok) {
-    if (response.status === 401 && !path.startsWith('/auth/')) {state.user = null; $('#workspace').hidden = true; $('#login-view').hidden = false;}
+    if (response.status === 401 && !path.startsWith('/auth/')) {caseConversations.clear();state.user = null; $('#workspace').hidden = true; $('#login-view').hidden = false;}
     throw new Error(typeof data.detail === 'string' ? data.detail : data.detail?.map(e => `${e.loc.slice(1).join('.')}: ${e.msg}`).join('; ') || 'Request failed');
   }
   return data;
@@ -61,6 +63,7 @@ async function busy(button, task) {
 }
 
 async function enter(user) {
+  caseConversations.clear();
   state.user = user; state.csrf = user.csrf; state.demo = user.demo;
   state.q='';state.status='';state.page=1;state.view='disputes';state.detail=null;state.ai=null;
   $('#search').value='';$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.status===''));
@@ -91,7 +94,7 @@ $('#auth-form').addEventListener('submit', async event => {
   });
 });
 $('#demo-login').addEventListener('click', event => busy(event.currentTarget, async () => enter(await api('/auth/demo', {method:'POST'}))));
-$('#logout').addEventListener('click', event => busy(event.currentTarget, async () => {await api('/auth/logout', {method:'POST'}); state.user = null; state.csrf = ''; $('#workspace').hidden = true; $('#login-view').hidden = false;}));
+$('#logout').addEventListener('click', event => busy(event.currentTarget, async () => {await api('/auth/logout', {method:'POST'}); caseConversations.clear();state.user = null; state.csrf = ''; $('#workspace').hidden = true; $('#login-view').hidden = false;}));
 
 async function loadView() {
   const views = ['disputes', 'audit', 'integrations'];
@@ -203,6 +206,20 @@ async function openCase(id) {
   const sections=$$('.section-box', $('.detail-body'));
   const [checks,citations,history]=[...reviewPanel.children];
   sections[0].after(checks);sections[1].after(citations);sections[2].after(history);
+  const questionContainer=document.createElement('div');questionContainer.innerHTML=questionPanel();
+  const questions=questionContainer.firstElementChild;checks.after(questions);
+  const conversationKey=`${id}:${d.version}`;
+  for(const key of caseConversations.keys())if(key.startsWith(id+':')&&key!==conversationKey)caseConversations.delete(key);
+  if(!caseConversations.has(conversationKey))caseConversations.set(conversationKey,[]);
+  if(caseConversations.size>20)caseConversations.delete(caseConversations.keys().next().value);
+  const showConversation=()=>{$('#question-log').innerHTML=renderConversation(caseConversations.get(conversationKey)||[],d.evidence);};
+  showConversation();
+  questions.addEventListener('click',event=>{
+    const prompt=event.target.closest('[data-question]');
+    if(prompt){$('#case-question').value=prompt.dataset.question;$('#case-question').focus();}
+    const link=event.target.closest('[data-evidence-ref]');if(link)revealEvidence($('#detail-content'),link.dataset.evidenceRef);
+  });
+  $('#clear-questions').addEventListener('click',()=>{caseConversations.set(conversationKey,[]);showConversation();$('#question-status').textContent='Conversation cleared from this page.';});
   $$('.evidence-item', $('.detail-body')).forEach(element=>{
     const record=d.evidence.find(e=>$('small',element)?.textContent===`Evidence ID: ${e.id}`);
     if(record){element.dataset.evidenceId=record.id;element.tabIndex=-1;}
@@ -212,6 +229,22 @@ async function openCase(id) {
   const rerender = async message => {await openCase(id);await loadCases();toast(message);};
   const version=()=>d.version;
   const assertSaved=()=>{if($('#draft-text').value!==d.draft)throw new Error('Save your draft edits before continuing. Saving clears any previous approval.');};
+  $('#question-form').addEventListener('submit',event=>{
+    event.preventDefault();busy($('button[type="submit"]',event.target),async()=>{
+      try{
+        assertSaved();
+        const question=$('#case-question').value.trim();
+        const turns=caseConversations.get(conversationKey)||[];
+        const history=turns.slice(-6).map(turn=>({role:turn.role,content:turn.content}));
+        $('#question-status').textContent='Asking the AI using this saved case. No case action will be taken…';
+        const answer=await api(`/disputes/${id}/questions`,{method:'POST',body:{version:version(),question,history}});
+        if(answer.case_version!==version())throw new Error('The answer belongs to an older case version. Refresh and ask again.');
+        const content=answer.report.findings.map(f=>f.statement).join('\n').slice(0,3000);
+        caseConversations.set(conversationKey,[...turns,{role:'user',content:question},{role:'assistant',content,report:answer.report,source:answer.source}].slice(-6));
+        showConversation();$('#case-question').value='';$('#question-status').textContent=answer.notice;
+      }catch(error){$('#question-status').textContent=error.message;throw error;}
+    });
+  });
   $('#analyze-evidence')?.addEventListener('click',event=>busy(event.currentTarget,async()=>{assertSaved();await api(`/disputes/${id}/analyze`,{method:'POST',body:{version:version()}});await rerender('Evidence checks saved. Review the excerpts and gaps; nothing was approved.');}));
   $('#draft-text').addEventListener('input',()=>{
     const dirty=$('#draft-text').value!==d.draft;

@@ -1,0 +1,13 @@
+# Ask AI about a saved case
+
+Open a case and use Ask AI about this case. Suggested prompts ask about missing evidence, unsupported draft reasoning and the next review step. Follow-up questions include the latest three exchanges. Clear conversation removes this page's conversation; case-version changes and reloads also clear it. Questions and answers are not persisted as a chat history. The audit records only that a case question was answered, not its content.
+
+POST /api/v1/disputes/{identity}/questions accepts version, question (5..1000 characters) and at most six history turns (user or assistant, each at most 3000 characters). It requires tenant-scoped authentication, CSRF and the current saved version. It is limited to five questions per workspace per minute. An answer generated while the case changes is discarded. No database migration is needed.
+
+Only the selected case's saved response, metadata, evidence and bounded conversation are sent to the configured AI provider. Conversation and evidence are untrusted data; earlier AI responses cannot serve as evidence. Answers use recorded facts, gaps/suggestions and conflicts, with exact source excerpts validated against current evidence. Invented IDs or excerpts fail rather than being repaired. Questions cannot edit, approve, submit, call PayPal or turn suggestions into verified facts. Answers still require human judgment about relevance and meaning.
+
+This is case-specific assistance, not an unrestricted chatbot or an independent delivery-verification service. The interface labels unsourced limitations as gaps or suggestions and links sourced statements to the actual evidence. The assistant should acknowledge insufficient information or an unrelated question. Prompt compliance and semantic quality must be assessed on real output; validated source text alone does not prove an answer is correct.
+
+Quota/server failures return service-unavailable feedback and bounded Retry-After seconds when provided. Invalid model content still fails validation. Server warnings include only task, provider, HTTP status and recognized error code; questions, evidence, generated content and credentials are not logged by this diagnostic. No automatic retry or approval bypass is introduced.
+
+Before presenting the feature, ask: Does this snapshot prove delivery? What remains missing? Which claims in my saved draft are unsupported? Then ask a follow-up, inspect source excerpts, verify that the draft and approval did not change, clear the conversation, and check that it clears when a saved version changes. Test refusal or uncertainty for requests to approve a case, invent a tracking number or predict a win.

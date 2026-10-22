@@ -113,6 +113,8 @@ def analyze_evidence(settings, dispute, records, transport=None):
         'RECORDED requires at least one source; CONFLICT requires at least two distinct evidence IDs. MISSING may have no sources. '
         'Prefer two to four essential findings. Statements must be concise, 5 to 600 characters, with at most four sources each. '
         'Do not infer verification from a tracking number, payment receipt or document title. Do not invent facts, laws, eligibility, probabilities, identities or outcomes. '
+        'A PayPal dispute snapshot is case metadata, not proof of payment, shipment or delivery. If only such metadata is supplied, '
+        'identify the missing delivery evidence for an item-not-received dispute. Do not add authorization gaps unless relevant to the dispute reason. '
         'Do not request passwords, tax IDs, government IDs, full card/bank numbers or unrelated personal data. Never approve or submit anything. No Markdown fences.')
     payload = json.dumps({'reason': dispute.reason, 'amount_cents': dispute.amount_cents,
         'currency': dispute.currency, 'evidence': [{'id': e.id, 'title': e.title, 'content': e.content} for e in records]})

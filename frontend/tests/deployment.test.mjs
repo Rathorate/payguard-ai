@@ -36,7 +36,7 @@ test('frontend serves all UI assets, blocks private paths and retains CSP', asyn
     const icon=await fetch(base+'/static/favicon.svg');
     assert.equal(icon.status,200);
     assert.match(icon.headers.get('content-type'),/image\/svg\+xml/);
-    for (const asset of ['app.js', 'style.css', 'base.css']) assert.equal((await fetch(base + '/static/' + asset)).status, 200);
+    for (const asset of ['app.js', 'review-ui.js', 'questions-ui.js', 'style.css', 'base.css']) assert.equal((await fetch(base + '/static/' + asset)).status, 200);
     for (const path of ['/.env', '/app/config.py', '/%2e%2e%2f.env', '/static/%5c..%5c.env']) assert.equal((await fetch(base + path)).status, 404);
     assert.equal((await fetch(base, {method:'POST'})).status, 405);
     assert.equal((await fetch(base, {method:'HEAD'})).status, 200);

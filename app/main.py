@@ -18,9 +18,10 @@ from .config import Settings
 from .models import Base, Tenant, User, LoginSession, Dispute, Evidence, Audit, Webhook, Submission, RateBucket, DraftRevision, EvidenceAnalysis, database
 from .security import digest, hash_password, verify_password
 from .providers import PayPal, ProviderError, ProviderHTTPError, generate_draft
-from .schemas import Credentials, Registration, NewDispute, NewEvidence, Version, DraftEdit, Approval, SubmissionInput, PayPalImport
+from .schemas import Credentials, Registration, NewDispute, NewEvidence, Version, DraftEdit, Approval, SubmissionInput, PayPalImport, CaseQuestion
 from .paypal_import import snapshot as paypal_snapshot
 from .review import analyze_evidence, citation_report, validate_analysis
+from .questions import answer_question, validate_answer
 from .service import audit, get_dispute, evidence_for, transition, editable, add_evidence, serialize, demo_seed
 
 log = logging.getLogger('payguard')
@@ -44,6 +45,23 @@ def create_app(settings=None):
     app.state.paypal = PayPal(settings)
     app.state.drafter = generate_draft
     app.state.reviewer = analyze_evidence
+    app.state.answerer = answer_question
+
+    def ai_failure(task, exc):
+        diagnostic=getattr(exc,'diagnostic',{})
+        # Log protocol metadata only, never evidence, questions, generated text or keys.
+        log.warning('AI failure task=%s provider=%s status=%s code=%s',task,settings.drafting_provider,
+                    diagnostic.get('status','unknown'),diagnostic.get('code','unknown'))
+        headers={}
+        status=502
+        if isinstance(exc,ProviderHTTPError) and diagnostic.get('status')==429:
+            status=503
+            seconds=diagnostic.get('retry_after_seconds')
+            if isinstance(seconds,int) and 0<=seconds<=86400:
+                headers['Retry-After']=str(seconds)
+        elif isinstance(exc,ProviderHTTPError) and diagnostic.get('status') in {500,502,503,504}:
+            status=503
+        return HTTPException(status,str(exc),headers=headers)
 
     # ASGI body cap also covers chunked uploads; never trust Content-Length alone.
     class BodyLimit:
@@ -288,7 +306,7 @@ def create_app(settings=None):
             report, source = app.state.reviewer(settings, item, records)
             report = validate_analysis(json.dumps(report), records)
         except ProviderError as exc:
-            raise HTTPException(502, str(exc))
+            raise ai_failure('analysis',exc)
         # Conditional write serializes with edits; stale results cannot describe a newer case.
         result = db.execute(update(Dispute).where(Dispute.id==identity, Dispute.tenant_id==who[0].tenant_id, Dispute.version==body.version).values(version=body.version))
         if result.rowcount != 1:
@@ -302,6 +320,30 @@ def create_app(settings=None):
             db.rollback()
             raise HTTPException(409, 'Another review was saved. Refresh this case.')
         return {**serialize(record), 'report': report}
+
+    @app.post('/api/v1/disputes/{identity}/questions')
+    def case_question(identity: str, body: CaseQuestion, who=Depends(principal), db=Depends(db_session)):
+        tenant=who[0].tenant_id
+        item=get_dispute(db,tenant,identity)
+        if item.version!=body.version:
+            raise HTTPException(409,'This case changed. Refresh before asking a question.')
+        records=evidence_for(db,tenant,identity)
+        if not records:
+            raise HTTPException(422,'Add evidence before asking a case question')
+        rate_limit(db,'questions:'+tenant,5,60)
+        try:
+            report,source=app.state.answerer(settings,item,records,body.question,[turn.model_dump() for turn in body.history])
+            report=validate_answer(report,records)
+        except ProviderError as exc:
+            raise ai_failure('question',exc)
+        result=db.execute(update(Dispute).where(Dispute.id==identity,Dispute.tenant_id==tenant,
+            Dispute.version==body.version).values(version=body.version))
+        if result.rowcount!=1:
+            raise HTTPException(409,'The case changed while answering. Refresh; the answer was discarded.')
+        audit(db,tenant,who[0].email,'CASE_QUESTION_ANSWERED_'+source,identity)
+        db.commit()
+        return {'case_version':body.version,'source':source,'report':report,
+                'notice':'AI guidance only. Check the sources. The draft, approval and submission were not changed.'}
 
     @app.post('/api/v1/disputes/{identity}/evidence', status_code=201)
     def evidence(identity: str, body: NewEvidence, who=Depends(principal), db=Depends(db_session)):
@@ -343,7 +385,7 @@ def create_app(settings=None):
         try:
             text, source = app.state.drafter(settings, item, records)
         except ProviderError as exc:
-            raise HTTPException(502, str(exc))
+            raise ai_failure('draft',exc)
         transition(db, item, body.version, draft=text, draft_source=source, status='REVIEW')
         db.add(DraftRevision(tenant_id=who[0].tenant_id, dispute_id=identity, case_version=body.version+1, action='GENERATED', source=source, text=text, actor=who[0].email))
         audit(db, who[0].tenant_id, who[0].email, 'DRAFT_GENERATED_' + source, identity)
@@ -516,7 +558,7 @@ def create_app(settings=None):
         try:
             text, source = app.state.drafter(settings, sample, evidence)
         except ProviderError as exc:
-            raise HTTPException(502, str(exc))
+            raise ai_failure('connection-check',exc)
         audit(db, who[0].tenant_id, who[0].email, 'AI_CONNECTION_VERIFIED_' + source, 'synthetic-connection-test')
         db.commit()
         return {'status': 'ok', 'provider': source, 'model': status['ai_model'], 'sample_draft': text, 'notice': 'Synthetic text only. No case was changed, approved or submitted.'}
