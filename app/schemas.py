@@ -37,7 +37,7 @@ class NewEvidence(Input):
 
 
 class Version(Input):
-    version: int = Field(gt=0)
+    version: int = Field(strict=True, gt=0)
 
 
 class DraftEdit(Version):
@@ -47,6 +47,20 @@ class DraftEdit(Version):
 class Approval(Version):
     reviewed: Literal[True]
 
+    @field_validator('reviewed', mode='before')
+    @classmethod
+    def explicit_review(cls, value):
+        if value is not True:
+            raise ValueError('Explicit human review is required')
+        return value
+
 
 class SubmissionInput(Version):
     confirmed: Literal[True]
+
+    @field_validator('confirmed', mode='before')
+    @classmethod
+    def explicit_confirmation(cls, value):
+        if value is not True:
+            raise ValueError('Explicit submission confirmation is required')
+        return value

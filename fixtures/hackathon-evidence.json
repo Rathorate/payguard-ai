@@ -1,0 +1,20 @@
+{
+  "notice": "Synthetic hackathon fixtures. Not verified delivery, payment authorization or Seller Protection evidence.",
+  "records": [
+    {
+      "title": "Synthetic order invoice",
+      "kind": "INVOICE",
+      "content": "SYNTHETIC DEMO DATA. Order DEMO-1003: one desk lamp, 129.00 USD. Merchant order system records payment received. This receipt does not establish cardholder authorization or delivery."
+    },
+    {
+      "title": "Synthetic support exchange",
+      "kind": "COMMUNICATION",
+      "content": "SYNTHETIC DEMO DATA. Customer contacted merchant support about an unrecognized charge. Support requested order identification. No customer acknowledgement of delivery or authorization is recorded."
+    },
+    {
+      "title": "Synthetic shipment statement",
+      "kind": "TRACKING",
+      "content": "SYNTHETIC DEMO DATA. Merchant recorded parcel DEMO-TRACK-1003 as dispatched. No independent carrier lookup, delivery scan, signature or destination match is available."
+    }
+  ]
+}

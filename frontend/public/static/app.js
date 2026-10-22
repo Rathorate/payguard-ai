@@ -8,15 +8,19 @@ const money = (cents, currency = 'USD') => {try {return new Intl.NumberFormat('e
 const date = seconds => seconds ? new Date(seconds * 1000).toLocaleDateString(undefined, {month:'short',day:'numeric',year:'numeric'}) : 'Check PayPal';
 const badge = status => `<span class="badge ${escape(status)}">${escape(labels[status] || status)}</span>`;
 let toastTimer;
-function toast(message) {$('#toast').textContent = message; $('#toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => $('#toast').hidden = true, 6500);}
+function toast(message) {const feedback=$('#case-feedback');if(feedback && $('#case-dialog').open){feedback.textContent=message;feedback.hidden=false;}$('#toast').textContent = message; $('#toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => $('#toast').hidden = true, 6500);}
 
 async function api(path, options = {}) {
   const headers = {'X-CSRF-Token': state.csrf, ...options.headers};
   if (options.body && !(options.body instanceof FormData)) {headers['Content-Type'] = 'application/json'; options.body = JSON.stringify(options.body);}
   // Vercel (or the local frontend server) forwards this path to the separate API.
-  const response = await fetch('/api/v1' + path, {...options, headers, credentials:'same-origin'});
+  let response;
+  try {response = await fetch('/api/v1' + path, {...options, headers, credentials:'same-origin'});}
+  catch {throw new Error('Connection lost. Keep both local servers running, then refresh this case before retrying.');}
   if (response.status === 204) return null;
-  const data = await response.json();
+  let data;
+  try {data = await response.json();}
+  catch {throw new Error(`The server returned an unexpected response (${response.status}). Check the backend connection.`);}
   if (!response.ok) {
     if (response.status === 401 && !path.startsWith('/auth/')) {state.user = null; $('#workspace').hidden = true; $('#login-view').hidden = false;}
     throw new Error(typeof data.detail === 'string' ? data.detail : data.detail?.map(e => `${e.loc.slice(1).join('.')}: ${e.msg}`).join('; ') || 'Request failed');
@@ -79,7 +83,7 @@ async function loadView() {
     const data = await api('/integrations');
     const cards = [
       ['PayPal',data.paypal_configured,`Dispute ingestion and merchant evidence submission. Environment: ${data.paypal_environment}. ${state.demo ? 'Submission is simulated in demo mode.' : ''}`],
-      ['AI drafting',data.ai_configured,'Optional OpenAI drafting from supplied evidence. Without a key, a deterministic template is used.'],
+      ['AI drafting',data.ai_configured,`Selected provider: ${data.ai_provider}. Groq and OpenAI are supported. Template mode works without an API key. Every response needs your review.`],
       ['Carrier verification',false,'Tracking statements can be recorded manually. No independent carrier verification is connected.'],
       ['Document extraction',true,'Text PDFs are supported. Scanned documents and images require a separate OCR service.']
     ];
@@ -126,16 +130,34 @@ async function openCase(id) {
   const d = await api(`/disputes/${id}`); state.detail=d;
   $('#detail-title').textContent = d.paypal_id;
   const locked = ['SUBMITTED','RESOLVED','SUBMITTING','SUBMISSION_UNKNOWN'].includes(d.status);
-  $('#detail-content').innerHTML = `<div class="detail-body">${badge(d.status)}<div class="detail-meta"><div><span>Customer</span><b>${escape(d.customer)}</b></div><div><span>Disputed amount</span><b>${escape(money(d.amount_cents,d.currency))}</b></div><div><span>Response deadline</span><b>${escape(date(d.due_at))}</b></div></div><p class="small muted">${escape(reasons[d.reason]||d.reason)}</p>
+  $('#detail-content').innerHTML = `<div class="detail-body"><p id="case-feedback" class="notice" role="status" hidden></p>${badge(d.status)}<div class="detail-meta"><div><span>Customer</span><b>${escape(d.customer)}</b></div><div><span>Disputed amount</span><b>${escape(money(d.amount_cents,d.currency))}</b></div><div><span>Response deadline</span><b>${escape(date(d.due_at))}</b></div></div><p class="small muted">${escape(reasons[d.reason]||d.reason)}</p>
     <section class="section-box"><div class="section-top"><h3><span class="step">1</span> Evidence collection</h3><span class="count">${d.evidence.length} items</span></div><p class="muted">Recorded merchant statements. Delivery and eligibility have not been independently verified.</p>${d.evidence.map(e=>`<details class="evidence-item"><summary>${escape(e.title)} <span class="badge">${escape(e.kind)}</span></summary><p>${escape(e.content)}</p><small>Evidence ID: ${escape(e.id)}</small></details>`).join('') || '<p class="muted">No evidence yet. Add your first record below.</p>'}
     ${!locked?`<details class="evidence-item"><summary>+ Add a record</summary><form id="evidence-form"><label>Title<input name="title" required minlength="2" maxlength="160" placeholder="Order invoice or delivery statement"></label><label>Type<select name="kind"><option>INVOICE</option><option>TRACKING</option><option>COMMUNICATION</option><option>OTHER</option></select></label><label>Facts / source text<textarea name="content" required minlength="5" maxlength="8000" placeholder="Paste the relevant facts and source details. Do not include unnecessary personal information."></textarea></label><button class="secondary">Save evidence</button></form></details><form id="upload-form"><label class="upload-label">Or extract text from a PDF<input name="file" type="file" accept="application/pdf" required><small>Up to 5 MB / 20 pages. Image-only documents need OCR.</small></label><button class="secondary compact">Extract & add</button></form>`:''}</section>
-    <section class="section-box"><div class="section-top"><h3><span class="step">2</span> Response draft</h3>${!locked?'<button class="secondary compact" id="generate-draft">✦ Generate draft</button>':''}</div><p class="muted">${d.draft_source==='OPENAI'?'AI-generated draft. Verify every assertion and evidence reference.':d.draft_source==='MERCHANT'?'Edited by merchant. Review before approval.':'Template drafting works without an API key. AI drafting is optional.'}</p><label for="draft-text" class="sr-only">Defense draft</label><textarea id="draft-text" rows="10" maxlength="12000" placeholder="Add evidence, then generate or write your response." ${locked?'readonly':''}>${escape(d.draft)}</textarea>${!locked?'<div class="actions"><button class="secondary" id="save-draft">Save edits</button></div>':''}</section>
+    <section class="section-box"><div class="section-top"><h3><span class="step">2</span> Response draft</h3>${!locked?'<button class="secondary compact" id="generate-draft">✦ Generate draft</button>':''}</div><p class="muted">${['OPENAI','GROQ'].includes(d.draft_source)?`${escape(d.draft_source)} draft. Verify every assertion and evidence reference.`:d.draft_source==='MERCHANT'?'Edited by merchant. Review before approval.':'Template drafting works without an API key. AI drafting is optional.'}</p><label for="draft-text" class="sr-only">Defense draft</label><textarea id="draft-text" rows="10" maxlength="12000" placeholder="Add evidence, then generate or write your response." ${locked?'readonly':''}>${escape(d.draft)}</textarea><p class="small muted" id="draft-save-status" role="status">${locked?'Response locked after submission.':'You are reviewing the saved response shown above.'}</p>${!locked?'<div class="actions"><button class="secondary" id="save-draft">Save edits</button></div>':''}</section>
     <section class="section-box"><h3><span class="step">3</span> Review & respond</h3><p class="muted">Approval applies to the current version. Changing evidence or the draft requires a new review.</p>${d.status==='REVIEW'?'<label class="check-label"><input type="checkbox" id="review-check">I checked the facts, evidence references, and response deadline.</label><button class="primary" id="approve-draft">Approve response →</button>':''}${d.status==='APPROVED'?`<label class="check-label"><input type="checkbox" id="submit-check">${state.demo?'I understand this simulates submission.':'I confirm this response should be sent to PayPal.'}</label><button class="primary" id="submit-case">${state.demo?'Simulate submission':'Send response to PayPal'} →</button>`:''}${d.status==='OPEN'?'<p class="notice">Add evidence and save a draft to start your review.</p>':''}${d.status==='SUBMITTED'?`<p class="notice">${state.demo?'Demo submission complete. Nothing was sent to PayPal.':'Response sent to PayPal for review. Submission does not mean the dispute is won.'}</p>`:''}${['SUBMISSION_UNKNOWN','SUBMITTING'].includes(d.status)?'<p class="notice">This case needs reconciliation. Check PayPal and the submission record before taking further action. Automatic retries are disabled.</p>':''}${d.status==='RESOLVED'?'<p class="notice">PayPal reports this case is resolved.</p>':''}</section><p class="small muted">Case version ${d.version} · No automated eligibility or win-rate assessment.</p></div>`;
   const dialog=$('#case-dialog'); if(!dialog.open)dialog.showModal();
   const rerender = async message => {await openCase(id);await loadCases();toast(message);};
-  const version=()=>state.detail.version;
-  $('#evidence-form')?.addEventListener('submit',event=>{event.preventDefault();busy($('button',event.target),async()=>{await api(`/disputes/${id}/evidence`,{method:'POST',body:{...Object.fromEntries(new FormData(event.target)),version:version()}});await rerender('Evidence added. Any previous approval has been cleared.');});});
-  $('#upload-form')?.addEventListener('submit',event=>{event.preventDefault();busy($('button',event.target),async()=>{const data=new FormData(event.target);data.set('version',version());await api(`/disputes/${id}/upload`,{method:'POST',body:data});await rerender('PDF text added as evidence.');});});
+  const version=()=>d.version;
+  const assertSaved=()=>{if($('#draft-text').value!==d.draft)throw new Error('Save your draft edits before continuing. Saving clears any previous approval.');};
+  $('#draft-text').addEventListener('input',()=>{
+    const dirty=$('#draft-text').value!==d.draft;
+    $('#draft-save-status').textContent=dirty?'Unsaved edits. Save and review again before approval, export or submission.':'You are reviewing the saved response shown above.';
+    for(const selector of ['#review-check','#submit-check']){const box=$(selector);if(box)box.checked=false;}
+    for(const selector of ['#approve-draft','#submit-case','#export-packet']){const button=$(selector);if(button)button.disabled=dirty;}
+  });
+  if(d.status==='APPROVED'){
+    const actions=document.createElement('div');actions.className='actions';
+    actions.innerHTML='<button class="secondary" id="request-changes">Withdraw approval</button><button class="secondary" id="export-packet">Download approved packet</button>';
+    $('#submit-case').after(actions);
+    $('#request-changes').addEventListener('click',event=>busy(event.currentTarget,async()=>{assertSaved();await api(`/disputes/${id}/request-changes`,{method:'POST',body:{version:version()}});await rerender('Approval withdrawn. Review the response again before submission.');}));
+    $('#export-packet').addEventListener('click',event=>busy(event.currentTarget,async()=>{
+      assertSaved();await api(`/disputes/${id}/export?version=${version()}`);
+      const link=document.createElement('a');link.href=`/api/v1/disputes/${id}/export?version=${version()}`;link.download=`payguard-${d.paypal_id}-v${d.version}.json`;document.body.append(link);link.click();link.remove();
+      toast('Packet download requested. Nothing was sent to PayPal.');
+    }));
+  }
+  $('#evidence-form')?.addEventListener('submit',event=>{event.preventDefault();busy($('button',event.target),async()=>{assertSaved();await api(`/disputes/${id}/evidence`,{method:'POST',body:{...Object.fromEntries(new FormData(event.target)),version:version()}});await rerender('Evidence added. Any previous approval has been cleared.');});});
+  $('#upload-form')?.addEventListener('submit',event=>{event.preventDefault();busy($('button',event.target),async()=>{assertSaved();const data=new FormData(event.target);data.set('version',version());await api(`/disputes/${id}/upload`,{method:'POST',body:data});await rerender('PDF text added as evidence.');});});
   $('#generate-draft')?.addEventListener('click',event=>busy(event.currentTarget,async()=>{if($('#draft-text').value!==state.detail.draft){toast('Save your edits before generating another draft.');return;}await api(`/disputes/${id}/draft`,{method:'POST',body:{version:version()}});await rerender('Draft created. Review it before approving.');}));
   $('#save-draft')?.addEventListener('click',event=>busy(event.currentTarget,async()=>{await api(`/disputes/${id}/draft`,{method:'PUT',body:{version:version(),text:$('#draft-text').value}});await rerender('Draft edits saved.');}));
   $('#approve-draft')?.addEventListener('click',event=>busy(event.currentTarget,async()=>{if(!$('#review-check').checked)throw new Error('Confirm that you have reviewed the response.');if($('#draft-text').value!==state.detail.draft)throw new Error('Save your draft edits before approving.');await api(`/disputes/${id}/approve`,{method:'POST',body:{version:version(),reviewed:true}});await rerender('Response approved. Ready for your submission.');}));

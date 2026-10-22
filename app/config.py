@@ -17,6 +17,15 @@ class Settings:
     paypal_tenant_id: str = field(default_factory=lambda: os.getenv('PAYPAL_TENANT_ID', ''))
     openai_key: str = field(default_factory=lambda: os.getenv('OPENAI_API_KEY', ''))
     openai_model: str = field(default_factory=lambda: os.getenv('OPENAI_MODEL', ''))
+    ai_provider: str = field(default_factory=lambda: os.getenv('AI_PROVIDER', 'auto').lower())
+    groq_key: str = field(default_factory=lambda: os.getenv('GROQ_API_KEY', ''))
+    groq_model: str = field(default_factory=lambda: os.getenv('GROQ_MODEL', 'openai/gpt-oss-20b'))
+
+    @property
+    def drafting_provider(self):
+        if self.ai_provider != 'auto':
+            return self.ai_provider
+        return 'groq' if self.groq_key else 'openai' if self.openai_key else 'template'
 
     def __post_init__(self):
         # Managed providers commonly supply driver-neutral PostgreSQL URLs.
@@ -26,6 +35,8 @@ class Settings:
                 break
 
     def validate(self):
+        if self.ai_provider not in {'auto', 'template', 'groq', 'openai'}:
+            raise ValueError('AI_PROVIDER must be auto, template, groq or openai')
         parsed = urlsplit(self.origin)
         if parsed.scheme not in ('http', 'https') or not parsed.hostname or parsed.username or parsed.password or parsed.path not in ('', '/') or parsed.query or parsed.fragment:
             raise ValueError('APP_ORIGIN must be the exact frontend HTTP(S) origin, without credentials, path, query or fragment')

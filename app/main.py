@@ -321,7 +321,7 @@ def create_app(settings=None):
             return serialize(existing)
         if item.status != 'APPROVED' or not item.draft:
             raise HTTPException(409, 'Approve the current draft before submission')
-        if item.due_at < int(time.time()):
+        if item.due_at <= int(time.time()):
             raise HTTPException(409, 'Response deadline has passed; check PayPal before proceeding')
         if not settings.demo and tenant != settings.paypal_tenant_id:
             raise HTTPException(409, 'This workspace has no connected PayPal account')
@@ -351,6 +351,28 @@ def create_app(settings=None):
         db.commit()
         return serialize(submission)
 
+    @app.post('/api/v1/disputes/{identity}/request-changes')
+    def request_changes(identity: str, body: Version, who=Depends(principal), db=Depends(db_session)):
+        item = get_dispute(db, who[0].tenant_id, identity)
+        if item.status != 'APPROVED':
+            raise HTTPException(409, 'Only an approved response can be returned for review')
+        transition(db, item, body.version, status='REVIEW')
+        audit(db, who[0].tenant_id, who[0].email, 'APPROVAL_WITHDRAWN', identity)
+        db.commit()
+        db.refresh(item)
+        return serialize(item)
+
+    @app.get('/api/v1/disputes/{identity}/export')
+    def export_packet(identity: str, version: int = Query(..., gt=0), who=Depends(principal), db=Depends(db_session)):
+        item = get_dispute(db, who[0].tenant_id, identity)
+        if item.status != 'APPROVED' or item.version != version:
+            raise HTTPException(409, 'Approve the current saved response before exporting')
+        packet = {'format': 'payguard.reviewed-packet.v1', 'mode': 'demo' if settings.demo else 'live',
+                  'notice': 'Prepared for human review/manual use. This export does not submit anything to PayPal.' + (' Demo seed cases and evidence are synthetic.' if settings.demo else ''),
+                  'case': serialize(item), 'evidence': [serialize(e) for e in evidence_for(db, who[0].tenant_id, identity)]}
+        packet['sha256'] = digest(json.dumps(packet, sort_keys=True))
+        return Response(json.dumps(packet, indent=2), media_type='application/json', headers={'Content-Disposition': f'attachment; filename="payguard-{item.paypal_id}-v{item.version}.json"'})
+
     @app.get('/api/v1/submissions')
     def submissions(who=Depends(principal), db=Depends(db_session)):
         return {'items': [serialize(s) for s in db.scalars(select(Submission).where(Submission.tenant_id == who[0].tenant_id).limit(100))]}
@@ -362,7 +384,9 @@ def create_app(settings=None):
 
     @app.get('/api/v1/integrations')
     def integrations(who=Depends(principal)):
-        return {'mode': 'demo' if settings.demo else 'live', 'paypal_environment': settings.paypal_environment, 'paypal_configured': bool(settings.paypal_client_id and settings.paypal_secret and who[0].tenant_id == settings.paypal_tenant_id), 'webhook_configured': bool(settings.paypal_webhook_id), 'ai_configured': bool(settings.openai_key and settings.openai_model), 'carrier_verification': False, 'ocr': False}
+        provider = settings.drafting_provider
+        ai_configured = bool(settings.groq_key and settings.groq_model) if provider == 'groq' else bool(settings.openai_key and settings.openai_model) if provider == 'openai' else False
+        return {'mode': 'demo' if settings.demo else 'live', 'paypal_environment': settings.paypal_environment, 'paypal_configured': bool(settings.paypal_client_id and settings.paypal_secret and who[0].tenant_id == settings.paypal_tenant_id), 'webhook_configured': bool(settings.paypal_webhook_id), 'ai_provider': provider, 'ai_configured': ai_configured, 'carrier_verification': False, 'ocr': False}
 
     @app.post('/api/v1/webhooks/paypal', status_code=202)
     def webhook(body: dict, request: Request, db=Depends(db_session)):

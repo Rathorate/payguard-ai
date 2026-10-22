@@ -20,7 +20,7 @@ Open http://127.0.0.1:3000 in Windows and select **Open interactive demo**. The 
 
 The adapter boundary is app/providers.py, function generate_draft. Preserve the (text, source) return shape and ProviderError failure behavior. Case version checks and mandatory merchant review remain outside that adapter. Tests are in tests/test_providers.py.
 
-The optional adapter accepts OPENAI_API_KEY and OPENAI_MODEL in .env. Without a key, drafting uses the clearly labeled template. Real model quality requires separate credentialed evaluation.
+Groq is supported using AI_PROVIDER=groq, GROQ_API_KEY and GROQ_MODEL in .env. Set AI_PROVIDER=template for offline drafting. The existing OpenAI adapter remains supported. See HACKATHON.md for the full local rehearsal. Real model quality requires separate credentialed evaluation.
 
 ## Continue without PayPal access
 

@@ -1,3 +1,17 @@
+# Human review and Groq verification - 22 October 2026
+
+- Complete local Python suite: **57 passed, 1 skipped**, 91% line coverage. PostgreSQL requires a disposable database and was skipped; no local Docker/PostgreSQL executable was available.
+- **4 Node tests passed**; frontend build/config check, JavaScript syntax and dependency compatibility checks passed.
+- Added explicit boolean acknowledgement validation, approval withdrawal, approved-version packet export, Groq provider selection and failure handling, and simultaneous-submission coverage.
+- Real browser checks used separate local Node and Uvicorn processes on ports 3101 and 8101: login, open case, generate template, block unchecked approval, change draft, disable approval while unsaved, save and re-review, approve, download JSON packet, withdraw approval, reapprove, block unchecked submission, simulate submission and verify locked response.
+- Browser packet download returned an actual local JSON file. Screenshot: human-review-verified.png. The browser download observer was slow; API attachment content and headers are independently tested.
+- Groq tests mock successful, malformed, truncated, timed-out, rate-limited and failed responses. No real Groq call was made because no key was provided. Factual quality still needs a credentialed rehearsal with synthetic evidence.
+- PayPal is simulated, including when credentials exist in demo mode. Real PayPal calls, cloud deployment, Docker startup, managed PostgreSQL and load capacity remain unverified. Nothing was deployed.
+- Starlette emits one non-failing TestClient/httpx deprecation warning. It is not the cause of a frontend connection reset.
+- Ubuntu cannot be controlled from this session (WSL access denied); the verified servers run locally on Windows. Pull the code and run the same test launcher in Ubuntu to validate that environment.
+
+Earlier verification records below are historical.
+
 # Separate deployment verification - 22 October 2026
 
 - Python regression suite plus real separate frontend/API HTTP workflow: **30 passed, 1 skipped**. The skipped check requires disposable PostgreSQL.
