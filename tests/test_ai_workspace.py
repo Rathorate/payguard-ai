@@ -40,7 +40,7 @@ def test_disabled_or_missing_key_is_visible_and_check_does_not_call_provider(mer
     assert merchant.post('/api/v1/integrations/ai/check').status_code == 409
 
 
-def test_ai_connection_check_uses_synthetic_data_without_changing_cases(merchant, app):
+def test_ai_connection_check_uses_synthetic_data_without_changing_cases(merchant, app, frozen_app_clock):
     settings = app.state.settings
     settings.ai_provider,settings.groq_key,settings.groq_model = 'groq','test-key','test-model'
     requests = []

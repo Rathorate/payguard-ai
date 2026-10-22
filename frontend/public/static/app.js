@@ -150,7 +150,7 @@ async function loadCases() {
 
 $('#check-paypal').addEventListener('click',event=>busy(event.currentTarget,async()=>{
   $('#paypal-feedback').textContent='Checking PayPal sandbox authentication…';
-  try{const result=await api('/integrations/paypal/check',{method:'POST'});$('#paypal-feedback').textContent=result.notice;}
+  try{const result=await api('/integrations/paypal/check',{method:'POST'});$('#paypal-feedback').textContent=`${result.notice} App fingerprint: ${result.client_id_fingerprint}. Seller dispute-read scope: ${result.dispute_read_scope_present===true?'present':result.dispute_read_scope_present===false?'missing':'not reported'}.`;}
   catch(error){$('#paypal-feedback').textContent=error.message;throw error;}
 }));
 $('#paypal-import-form').addEventListener('submit',event=>{

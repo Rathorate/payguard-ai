@@ -117,8 +117,11 @@ def test_import_bad_id_rejected_before_request(merchant,app):
     assert calls==[]
 
 
-def test_auth_check_rate_limit(merchant,app):
+def test_auth_check_rate_limit(merchant,app,frozen_app_clock):
     calls=connect(merchant,app)
     for _ in range(3):assert merchant.post('/api/v1/integrations/paypal/check').status_code==200
     assert merchant.post('/api/v1/integrations/paypal/check').status_code==429
     assert len(calls)==3
+    frozen_app_clock.now+=61
+    assert merchant.post('/api/v1/integrations/paypal/check').status_code==200
+    assert len(calls)==4

@@ -22,6 +22,16 @@ bash scripts/verify-paypal.sh
 
 This makes an actual sandbox OAuth request and prints credential-presence booleans and a sanitized result. It creates no payment or dispute and submits no evidence. Authentication success does not prove dispute access. A 401 suggests an incorrect pair/environment; a 403 requires account/permission investigation. Do not substitute live credentials.
 
+The diagnostic also prints a short SHA-256 fingerprint of the Client ID and whether the returned token advertises the seller dispute-read scope. The fingerprint cannot authenticate to PayPal; compare it locally with the intended app to spot a stale credential pair. A listed scope does not prove access to a particular merchant's case. Missing scope information is reported as unknown, not success. Protocol error codes and debug references are whitelisted; raw upstream messages/tokens are never printed.
+
+To separate account access from case ownership:
+
+```bash
+bash scripts/verify-paypal.sh --list-disputes
+```
+
+Only up to ten dispute IDs/statuses are printed; no buyer details. This is the first page only. A successful empty list does not establish that a particular case belongs to the app's merchant. If list access fails with 403, confirm the app's Customer disputes feature and token scope with PayPal support before enabling writes.
+
 ## 3. Map the merchant workspace
 
 ```bash

@@ -165,7 +165,7 @@ def test_finding_can_identify_conflicting_exact_sources():
     assert validate_analysis(json.dumps(report),records)==report
 
 
-def test_analysis_no_evidence_rate_limits_and_locked_case(merchant,app):
+def test_analysis_no_evidence_rate_limits_and_locked_case(merchant,app,frozen_app_clock):
     item=first_case(merchant);url='/api/v1/disputes/'+item['id']
     app.state.reviewer=lambda settings,case,records:(findings(records),'GROQ')
     for _ in range(5):

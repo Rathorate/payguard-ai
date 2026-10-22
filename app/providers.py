@@ -1,5 +1,6 @@
 """Small injectable adapters; no automatic retry of remote money-related writes."""
 import json
+import hashlib
 import re
 import httpx
 
@@ -14,7 +15,7 @@ class PayPal:
         self.transport = transport
         self.base = 'https://api-m.paypal.com' if settings.paypal_environment == 'live' else 'https://api-m.sandbox.paypal.com'
 
-    def _token(self, client):
+    def _oauth(self, client):
         if not self.settings.paypal_client_id or not self.settings.paypal_secret:
             raise ProviderError('Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET on the backend; never use the Groq key for PayPal')
         response = client.post(self.base + '/v1/oauth2/token', auth=(self.settings.paypal_client_id, self.settings.paypal_secret), data={'grant_type': 'client_credentials'})
@@ -23,14 +24,33 @@ class PayPal:
         token = data.get('access_token') if isinstance(data, dict) else None
         if not isinstance(token, str) or not token or len(token) > 16384 or '\r' in token or '\n' in token:
             raise ProviderError('PayPal authentication returned an invalid token; no payment or dispute was changed')
-        return token
+        scope = data.get('scope')
+        scopes = scope.split() if isinstance(scope,str) and len(scope)<=16384 else None
+        return token, scopes
+
+    def _token(self, client):
+        return self._oauth(client)[0]
 
     @staticmethod
     def _error(exc):
         if isinstance(exc, httpx.HTTPStatusError):
             code = exc.response.status_code
             advice = {401:'Check the Client ID/Secret pair and sandbox environment.',403:'Authentication may work, but this account/app lacks permission for this operation.',404:'Check that the dispute belongs to this sandbox merchant and its ID is correct.',429:'PayPal rate limit reached; wait before retrying.'}.get(code,'Check PayPal availability and account configuration.')
-            return ProviderError(f'PayPal request failed ({code}). {advice} Never automatically retry an uncertain submission.')
+            diagnostics = []
+            try:
+                payload = exc.response.json()
+                if isinstance(payload,dict):
+                    for key, label, pattern in [('name','code',r'[A-Z_]{1,80}'),('debug_id','debug ID',r'[A-Za-z0-9-]{1,64}')]:
+                        value=payload.get(key)
+                        if isinstance(value,str) and re.fullmatch(pattern,value): diagnostics.append(label+': '+value)
+                    details=payload.get('details')
+                    if isinstance(details,list) and details and isinstance(details[0],dict):
+                        issue=details[0].get('issue')
+                        if isinstance(issue,str) and re.fullmatch(r'[A-Z_]{1,80}',issue): diagnostics.append('issue: '+issue)
+            except ValueError:
+                pass
+            extra = (' ['+'; '.join(diagnostics)+']') if diagnostics else ''
+            return ProviderError(f'PayPal request failed ({code}). {advice}{extra} Never automatically retry an uncertain submission.')
         return ProviderError('PayPal unavailable or returned an invalid response. Never automatically retry an uncertain submission.')
 
     def check_sandbox_auth(self):
@@ -38,8 +58,11 @@ class PayPal:
             raise ProviderError('This diagnostic is sandbox-only; live credentials are not used')
         try:
             with httpx.Client(timeout=20, transport=self.transport) as client:
-                self._token(client)
-            return {'status':'ok','environment':'sandbox','notice':'Sandbox authentication verified. Dispute access and submission permissions are not yet verified. No payment or dispute was changed.'}
+                _, scopes = self._oauth(client)
+            return {'status':'ok','environment':'sandbox',
+                    'client_id_fingerprint':hashlib.sha256(self.settings.paypal_client_id.encode()).hexdigest()[:12],
+                    'dispute_read_scope_present':None if scopes is None else 'https://uri.paypal.com/services/disputes/read-seller' in scopes,
+                    'notice':'Sandbox authentication verified. Dispute access and submission permissions are not yet verified. No payment or dispute was changed.'}
         except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
             raise self._error(exc) from exc
 
@@ -65,6 +88,23 @@ class PayPal:
         if not re.fullmatch(r'[A-Za-z0-9-]{1,255}', paypal_id):
             raise ProviderError('Invalid provider dispute ID')
         return self.request('GET', '/v1/customer/disputes/' + paypal_id)
+
+    def list_sandbox_disputes(self):
+        if self.settings.paypal_environment != 'sandbox':
+            raise ProviderError('Dispute discovery is sandbox-only')
+        data = self.request('GET','/v1/customer/disputes',params={'page_size':10})
+        rows=data.get('items',[]) if isinstance(data,dict) else None
+        if not isinstance(rows,list) or len(rows)>10:
+            raise ProviderError('PayPal returned an invalid dispute list')
+        result=[]
+        for row in rows:
+            if not isinstance(row,dict) or not isinstance(row.get('dispute_id'),str) or not re.fullmatch(r'[A-Za-z0-9-]{1,255}',row['dispute_id']):
+                raise ProviderError('PayPal returned an invalid dispute list')
+            status=row.get('status','UNKNOWN')
+            if not isinstance(status,str) or not re.fullmatch(r'[A-Z_]{1,100}',status):
+                raise ProviderError('PayPal returned an invalid dispute list')
+            result.append({'dispute_id':row['dispute_id'],'status':status})
+        return result
 
     def submit(self, paypal_id, draft, evidence):
         current = self.details(paypal_id)
