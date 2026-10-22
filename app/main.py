@@ -336,7 +336,7 @@ def create_app(settings=None):
             raise HTTPException(422,'Add evidence before asking a case question')
         rate_limit(db,'questions:'+tenant,5,60)
         try:
-            report,source=app.state.answerer(settings,item,records,body.question,[turn.model_dump() for turn in body.history])
+            report,source=app.state.answerer(settings,item,records,body.question,[turn.model_dump() for turn in body.history],include_draft=body.include_draft)
             report=validate_answer(report,records)
         except ProviderError as exc:
             raise ai_failure('question',exc)

@@ -17,8 +17,8 @@ def answer(records):
 
 def test_case_questions_are_read_only_versioned_and_can_include_followups(merchant,app):
     item=first_case(merchant);url='/api/v1/disputes/'+item['id'];seen=[]
-    def responder(settings,case,records,question,history):
-        seen.append((question,history))
+    def responder(settings,case,records,question,history,**kwargs):
+        seen.append((question,history,kwargs))
         return answer(records),'GROQ'
     app.state.answerer=responder
     before=merchant.get(url).json()
@@ -31,6 +31,9 @@ def test_case_questions_are_read_only_versioned_and_can_include_followups(mercha
     assert merchant.get('/api/v1/submissions').json()['items']==[]
     assert merchant.post(url+'/questions',json={'version':item['version']+1,'question':'What is missing?'}).status_code==409
     assert len(seen)==1
+    assert seen[0][2]['include_draft'] is False
+    assert merchant.post(url+'/questions',json={'version':item['version'],'question':'Check my saved draft please.', 'include_draft':True}).status_code==200
+    assert seen[1][2]['include_draft'] is True
 
 
 def test_case_questions_reject_cross_tenant_csrf_and_hallucinated_quotes(merchant,app):
@@ -41,7 +44,7 @@ def test_case_questions_reject_cross_tenant_csrf_and_hallucinated_quotes(merchan
         assert other.post(url,json=payload).status_code==401
         login=other.post('/api/v1/auth/demo').json();other.headers['X-CSRF-Token']=login['csrf']
         assert other.post(url,json=payload).status_code==404
-    def bad(settings,case,records,*args):
+    def bad(settings,case,records,*args,**kwargs):
         data=answer(records);data['findings'][0]['sources'][0]['quote']='Invented independent carrier verification'
         return data,'GROQ'
     app.state.answerer=bad
@@ -54,7 +57,7 @@ def test_question_changed_during_generation_is_discarded(merchant,app):
     from sqlalchemy import update
     from app.models import Dispute
     item=first_case(merchant);url='/api/v1/disputes/'+item['id']
-    def responder(settings,case,records,*args):
+    def responder(settings,case,records,*args,**kwargs):
         with app.state.sessions() as db:
             db.execute(update(Dispute).where(Dispute.id==case.id).values(version=case.version+1));db.commit()
         return answer(records),'GROQ'
@@ -64,11 +67,11 @@ def test_question_changed_during_generation_is_discarded(merchant,app):
 
 def test_question_rate_limits_and_provider_quota_preserve_case(merchant,app,frozen_app_clock):
     item=first_case(merchant);url='/api/v1/disputes/'+item['id'];payload={'version':item['version'],'question':'What is missing?'}
-    app.state.answerer=lambda settings,case,records,*args:(answer(records),'GROQ')
+    app.state.answerer=lambda settings,case,records,*args,**kwargs:(answer(records),'GROQ')
     for _ in range(5):assert merchant.post(url+'/questions',json=payload).status_code==200
     assert merchant.post(url+'/questions',json=payload).status_code==429
     frozen_app_clock.now+=61
-    def quota(*args):raise ProviderHTTPError('Groq rate limit reached',{'status':429,'code':'rate_limit_exceeded','retry_after_seconds':35})
+    def quota(*args,**kwargs):raise ProviderHTTPError('Groq rate limit reached',{'status':429,'code':'rate_limit_exceeded','retry_after_seconds':35})
     app.state.answerer=quota
     before=merchant.get(url).json()
     result=merchant.post(url+'/questions',json=payload)
@@ -87,7 +90,8 @@ def test_question_input_is_bounded(merchant,extra):
         'version':item['version'],'question':'What is missing?',**extra}).status_code==422
 
 
-def test_question_provider_sends_only_current_case_and_treats_history_as_untrusted():
+@pytest.mark.parametrize('include_draft',[False,True])
+def test_question_provider_sends_only_current_case_and_treats_history_as_untrusted(include_draft):
     records=[SimpleNamespace(id='e1',title='Receipt',content='Synthetic merchant statement records payment only.')]
     case=SimpleNamespace(paypal_id='PP-R-TEST',reason='INQUIRY',amount_cents=1000,currency='USD',draft='Saved response')
     def handler(request):
@@ -97,10 +101,12 @@ def test_question_provider_sends_only_current_case_and_treats_history_as_untrust
         assert payload['question']=='What is missing?' and payload['case']['dispute_id']=='PP-R-TEST'
         assert body['response_format']['json_schema']['strict'] is True
         assert payload['source_passages'][0]['ref']=='S1'
+        if include_draft:assert payload['case']['saved_draft']=='Saved response'
+        else:assert 'saved_draft' not in payload['case']
         data={'findings':[{'category':'RECORDED','statement':'The merchant statement records payment only.','source_refs':['S1']},
                           {'category':'MISSING','statement':'Delivery is not established.','source_refs':[]}]}
         return httpx.Response(200,json={'choices':[{'finish_reason':'stop','message':{'content':json.dumps(data)}}]})
-    report,source=answer_question(Settings(ai_provider='groq',groq_key='test'),case,records,'What is missing?',[],httpx.MockTransport(handler))
+    report,source=answer_question(Settings(ai_provider='groq',groq_key='test'),case,records,'What is missing?',[],httpx.MockTransport(handler),include_draft=include_draft)
     assert source=='GROQ' and len(report['findings'])==2
     with pytest.raises(ProviderError):answer_question(Settings(ai_provider='template'),case,records,'What is missing?',[])
     with pytest.raises(ProviderError):answer_question(Settings(ai_provider='groq',groq_key='test'),case,records,'What is missing?',[],

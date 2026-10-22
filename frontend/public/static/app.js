@@ -216,10 +216,10 @@ async function openCase(id) {
   showConversation();
   questions.addEventListener('click',event=>{
     const prompt=event.target.closest('[data-question]');
-    if(prompt){$('#case-question').value=prompt.dataset.question;$('#case-question').focus();}
+    if(prompt){$('#case-question').value=prompt.dataset.question;$('#include-question-draft').checked=prompt.dataset.includeDraft==='true';$('#case-question').focus();}
     const link=event.target.closest('[data-evidence-ref]');if(link)revealEvidence($('#detail-content'),link.dataset.evidenceRef);
   });
-  $('#clear-questions').addEventListener('click',()=>{caseConversations.set(conversationKey,[]);showConversation();$('#question-status').textContent='Conversation cleared from this page.';});
+  $('#clear-questions').addEventListener('click',()=>{caseConversations.set(conversationKey,[]);showConversation();$('#include-question-draft').checked=false;$('#question-status').textContent='Conversation cleared from this page.';});
   $$('.evidence-item', $('.detail-body')).forEach(element=>{
     const record=d.evidence.find(e=>$('small',element)?.textContent===`Evidence ID: ${e.id}`);
     if(record){element.dataset.evidenceId=record.id;element.tabIndex=-1;}
@@ -237,7 +237,7 @@ async function openCase(id) {
         const turns=caseConversations.get(conversationKey)||[];
         const history=turns.slice(-6).map(turn=>({role:turn.role,content:turn.content}));
         $('#question-status').textContent='Asking the AI using this saved case. No case action will be taken…';
-        const answer=await api(`/disputes/${id}/questions`,{method:'POST',body:{version:version(),question,history}});
+        const answer=await api(`/disputes/${id}/questions`,{method:'POST',body:{version:version(),question,history,include_draft:$('#include-question-draft').checked}});
         if(answer.case_version!==version())throw new Error('The answer belongs to an older case version. Refresh and ask again.');
         const content=answer.report.findings.map(f=>f.statement).join('\n').slice(0,3000);
         caseConversations.set(conversationKey,[...turns,{role:'user',content:question},{role:'assistant',content,report:answer.report,source:answer.source}].slice(-6));

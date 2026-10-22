@@ -60,7 +60,7 @@ def validate_answer(report, records):
     return report
 
 
-def answer_question(settings, dispute, records, question, history, transport=None):
+def answer_question(settings, dispute, records, question, history, transport=None, *, include_draft=False):
     if settings.drafting_provider == 'template':
         raise ProviderError('Case questions require Groq or OpenAI. Manual evidence review remains available.')
     if not records:
@@ -78,6 +78,9 @@ def answer_question(settings, dispute, records, question, history, transport=Non
         'If the question cannot be answered from this case, say so; do not guess or give unrelated general advice. '
         'A PayPal dispute snapshot records an allegation, amount, status and deadline; it does not prove payment, '
         'shipment or delivery. For item-not-received focus on delivery evidence, not authorization unless explicitly relevant. '
+        'Do not add authorization/consent gaps to an item-not-received answer unless the user explicitly asks about authorization. '
+        'The saved draft is included only when the user chooses to include it. If absent and needed to answer, ask the user '
+        'to include it; never guess its contents. Do not repeat irrelevant gaps from a draft or earlier answer. '
         'Return ONLY JSON with findings: one to six objects with category, statement and source_refs. '
         'Answer the question in statement (5 to 600 characters per object). Use RECORDED for attributed facts '
         'with at least one source. Use MISSING for uncertainty, evidence gaps or suggested next steps; do not '
@@ -86,10 +89,12 @@ def answer_question(settings, dispute, records, question, history, transport=Non
         'Do not write quotations or evidence IDs yourself. The server attaches the original recorded excerpts. '
         'Select only passages supporting the statement. MISSING may have no source_refs. A concise unsupported answer should identify '
         'what is unknown rather than manufacture sources. Never treat a source link as proof of truth. No Markdown fences.')
+    case={'dispute_id': dispute.paypal_id, 'reason': dispute.reason,
+          'amount_cents': dispute.amount_cents, 'currency': dispute.currency}
+    if include_draft:
+        case['saved_draft']=dispute.draft
     payload = json.dumps({'question': question, 'conversation': history,
-        'case': {'dispute_id': dispute.paypal_id, 'reason': dispute.reason,
-                 'amount_cents': dispute.amount_cents, 'currency': dispute.currency,
-                 'saved_draft': dispute.draft},
+        'case':case,
         'source_passages':passages})
     text, source = generate_text(settings, instructions, payload, transport, response_schema=question_schema(passages))
     return resolve_answer(text,passages,records), source

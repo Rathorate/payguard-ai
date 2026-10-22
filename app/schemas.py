@@ -60,6 +60,7 @@ class ConversationTurn(Input):
 class CaseQuestion(Version):
     question: str = Field(min_length=5, max_length=1000)
     history: list[ConversationTurn] = Field(default_factory=list, max_length=6)
+    include_draft: bool = Field(default=False, strict=True)
 
 
 class Approval(Version):

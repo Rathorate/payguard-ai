@@ -1139,6 +1139,11 @@
             "type": "array",
             "maxItems": 6,
             "title": "History"
+          },
+          "include_draft": {
+            "type": "boolean",
+            "title": "Include Draft",
+            "default": false
           }
         },
         "additionalProperties": false,
