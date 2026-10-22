@@ -1,3 +1,14 @@
+# PayPal sandbox integration - 22 October 2026
+
+- Local Python regression: **96 passed, 2 skipped**, 90% line coverage. The two PostgreSQL tests require a disposable database and run separately in CI. One non-failing Starlette TestClient/httpx warning remains.
+- Four Node tests, frontend build/config validation with a test HTTPS backend origin, JavaScript/Bash syntax and Python dependency checks passed.
+- Added sandbox OAuth diagnostic, validated dispute import and an Integrations UI. Mocked provider tests cover authentication shape, 401/403/404/429/500, malformed amounts/deadlines, mismatched IDs, duplicate preservation, merchant mapping, CSRF, rate limits and imported-case drafting/approval/simulation.
+- Provider deadline changes invalidate approval while preserving the draft; regression coverage added.
+- Actual merchant authentication, dispute permissions and real sandbox retrieval remain pending credentialed verification. These tests created no payment, sent no evidence and performed no cloud deployment.
+- User-approved MIT license included, copyright 2026 Rathorate.
+
+Earlier records describe previous builds.
+
 # Human review hardening and live Groq rehearsal - 22 October 2026
 
 - The user verified a real Groq connection from Ubuntu. A separate browser test on port 3001 confirmed the running app selected Groq and generated a real response for a fresh synthetic case.

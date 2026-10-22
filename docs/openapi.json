@@ -802,6 +802,58 @@
         }
       }
     },
+    "/api/v1/integrations/paypal/check": {
+      "post": {
+        "summary": "Check Paypal",
+        "operationId": "check_paypal_api_v1_integrations_paypal_check_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/paypal/disputes/import": {
+      "post": {
+        "summary": "Import Paypal",
+        "operationId": "import_paypal_api_v1_paypal_disputes_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayPalImport"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/integrations/ai/check": {
       "post": {
         "summary": "Check Ai",
@@ -1077,6 +1129,23 @@
           "version"
         ],
         "title": "NewEvidence"
+      },
+      "PayPalImport": {
+        "properties": {
+          "paypal_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9-]+$",
+            "title": "Paypal Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "paypal_id"
+        ],
+        "title": "PayPalImport"
       },
       "Registration": {
         "properties": {

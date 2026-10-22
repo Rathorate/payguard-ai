@@ -1,5 +1,9 @@
 # PayGuard AI
 
+Licensed under [MIT](LICENSE), copyright 2026 Rathorate.
+
+See [PayPal sandbox setup](docs/PAYPAL_SANDBOX.md) for credentials, workspace mapping, real sandbox reads and safe simulated submission.
+
 For the local hackathon workflow, Groq setup, review/approval checks and PayPal-free demonstration, see [HACKATHON.md](docs/HACKATHON.md). The frontend and backend remain independently deployable; this rehearsal stays local.
 
 See [readiness and remaining gaps](docs/READINESS.md) for the verified human review flow, real Groq rehearsal, current limits and the work needed before public deployment or real PayPal submission.
@@ -65,7 +69,7 @@ The dev script loads the trusted local `.env`. Direct Python commands read proce
 
 Optional AI drafting supports Groq (`AI_PROVIDER=groq`, `GROQ_API_KEY`, `GROQ_MODEL`) and the existing OpenAI adapter. Set `AI_PROVIDER=template` for offline drafting. With the default `auto`, a configured Groq key takes priority, then OpenAI, otherwise a deterministic template. The adapter boundary is `generate_draft` in `app/providers.py`; retain its return shape, failure handling and mandatory human review. Real model quality requires credentialed evaluation.
 
-PayPal sandbox configuration needs `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_WEBHOOK_ID`, `PAYPAL_TENANT_ID` and `PAYPAL_ENVIRONMENT=sandbox`. Find the merchant tenant via authenticated `/api/v1/auth/me` or `python -m app.manage tenants`. Keep `DEMO_MODE=true` until ready: all submissions remain simulated in that mode. Real sandbox requests require `DEMO_MODE=false`, HTTPS frontend Origin and secure cookies. See [operations](docs/OPERATIONS.md).
+PayPal sandbox authentication/import needs `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_TENANT_ID` and `PAYPAL_ENVIRONMENT=sandbox`. Webhook ingestion additionally needs `PAYPAL_WEBHOOK_ID`. Find the merchant tenant in Integrations. Authentication and import work with `DEMO_MODE=true`; all submissions remain simulated in that mode. Real evidence submission requires `DEMO_MODE=false`, HTTPS frontend Origin and secure cookies, plus account-specific validation. See [operations](docs/OPERATIONS.md).
 
 Existing MVP limits remain: one connected PayPal merchant per deployment, notes-only submission, manual source evidence, text-PDF extraction without image OCR/original-file retention, no carrier integration, no auto-submission, no email recovery/team RBAC, and no reconciliation UI. These are follow-on features.
 

@@ -130,11 +130,13 @@ payguard/
     security.py     password/session hashing
     schemas.py      strict input validation
     service.py      tenant queries and optimistic transitions
-    providers.py    PayPal and optional OpenAI adapters
-    main.py         auth, API, middleware and static delivery
+    providers.py    PayPal, Groq and OpenAI adapters
+    paypal_import.py validated sandbox snapshot mapping
+    check_paypal.py  read-only sandbox diagnostic
+    main.py         auth, API and middleware
     worker.py       durable inbox processing and retry loop
     manage.py       explicit initial schema and workspace lookup
-  static/           responsive HTML/CSS and browser ES module
+  frontend/         separate static UI, Vercel rewrite and local Node proxy
   tests/            HTTP workflows, security, providers, workers, PostgreSQL smoke
   docs/             architecture, schema, OpenAPI, operations, verification
   .github/workflows/ci.yml

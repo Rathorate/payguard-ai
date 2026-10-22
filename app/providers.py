@@ -14,18 +14,44 @@ class PayPal:
         self.transport = transport
         self.base = 'https://api-m.paypal.com' if settings.paypal_environment == 'live' else 'https://api-m.sandbox.paypal.com'
 
-    def request(self, method, path, **kwargs):
+    def _token(self, client):
         if not self.settings.paypal_client_id or not self.settings.paypal_secret:
-            raise ProviderError('PayPal credentials are not configured')
+            raise ProviderError('Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET on the backend; never use the Groq key for PayPal')
+        response = client.post(self.base + '/v1/oauth2/token', auth=(self.settings.paypal_client_id, self.settings.paypal_secret), data={'grant_type': 'client_credentials'})
+        response.raise_for_status()
+        data = response.json()
+        token = data.get('access_token') if isinstance(data, dict) else None
+        if not isinstance(token, str) or not token or len(token) > 16384 or '\r' in token or '\n' in token:
+            raise ProviderError('PayPal authentication returned an invalid token; no payment or dispute was changed')
+        return token
+
+    @staticmethod
+    def _error(exc):
+        if isinstance(exc, httpx.HTTPStatusError):
+            code = exc.response.status_code
+            advice = {401:'Check the Client ID/Secret pair and sandbox environment.',403:'Authentication may work, but this account/app lacks permission for this operation.',404:'Check that the dispute belongs to this sandbox merchant and its ID is correct.',429:'PayPal rate limit reached; wait before retrying.'}.get(code,'Check PayPal availability and account configuration.')
+            return ProviderError(f'PayPal request failed ({code}). {advice} Never automatically retry an uncertain submission.')
+        return ProviderError('PayPal unavailable or returned an invalid response. Never automatically retry an uncertain submission.')
+
+    def check_sandbox_auth(self):
+        if self.settings.paypal_environment != 'sandbox':
+            raise ProviderError('This diagnostic is sandbox-only; live credentials are not used')
         try:
             with httpx.Client(timeout=20, transport=self.transport) as client:
-                token = client.post(self.base + '/v1/oauth2/token', auth=(self.settings.paypal_client_id, self.settings.paypal_secret), data={'grant_type': 'client_credentials'})
-                token.raise_for_status()
-                response = client.request(method, self.base + path, headers={'Authorization': 'Bearer ' + token.json()['access_token']}, **kwargs)
+                self._token(client)
+            return {'status':'ok','environment':'sandbox','notice':'Sandbox authentication verified. Dispute access and submission permissions are not yet verified. No payment or dispute was changed.'}
+        except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+            raise self._error(exc) from exc
+
+    def request(self, method, path, **kwargs):
+        try:
+            with httpx.Client(timeout=20, transport=self.transport) as client:
+                token = self._token(client)
+                response = client.request(method, self.base + path, headers={'Authorization': 'Bearer ' + token}, **kwargs)
                 response.raise_for_status()
                 return response.json() if response.content else {}
-        except (httpx.HTTPError, ValueError, KeyError) as exc:
-            raise ProviderError('PayPal request failed; check provider logs before retrying a submission') from exc
+        except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+            raise self._error(exc) from exc
 
     def verify(self, headers, event):
         mapping = {'auth_algo': 'paypal-auth-algo', 'cert_url': 'paypal-cert-url', 'transmission_id': 'paypal-transmission-id', 'transmission_sig': 'paypal-transmission-sig', 'transmission_time': 'paypal-transmission-time'}

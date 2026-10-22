@@ -106,6 +106,7 @@ async function loadView() {
     $('#audit-list').innerHTML = data.items.length ? data.items.map(x => `<div class="audit-row"><div>${escape(x.action.replaceAll('_',' ').toLowerCase())}<small>${escape(x.actor)} · ${escape(x.resource_id)}</small></div><time>${escape(new Date(x.created_at*1000).toLocaleString())}</time></div>`).join('') : '<div class="empty">Your workspace activity will appear here.</div>';
   } else {
     const data = await api('/integrations');
+    $('#paypal-workspace').textContent=state.user.tenant_id;
     const cards = [
       ['PayPal',data.paypal_configured,`Dispute ingestion and merchant evidence submission. Environment: ${data.paypal_environment}. ${state.demo ? 'Submission is simulated in demo mode.' : ''}`],
       ['AI drafting',data.ai_configured,`Selected provider: ${data.ai_provider}. ${data.ai_message || ''} ${data.ai_model ? 'Model: '+data.ai_model : ''}`],
@@ -146,6 +147,21 @@ async function loadCases() {
   $('#prev-page').disabled = state.page <= 1; $('#next-page').disabled = state.page*10 >= data.total;
 }
 
+$('#check-paypal').addEventListener('click',event=>busy(event.currentTarget,async()=>{
+  $('#paypal-feedback').textContent='Checking PayPal sandbox authentication…';
+  try{const result=await api('/integrations/paypal/check',{method:'POST'});$('#paypal-feedback').textContent=result.notice;}
+  catch(error){$('#paypal-feedback').textContent=error.message;throw error;}
+}));
+$('#paypal-import-form').addEventListener('submit',event=>{
+  event.preventDefault();const body=Object.fromEntries(new FormData(event.target));
+  busy($('button',event.target),async()=>{
+    try{
+      const item=await api('/paypal/disputes/import',{method:'POST',body});
+      state.view='disputes';state.page=1;state.q='';state.status='';$('#search').value='';$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.status===''));
+      await loadView();await openCase(item.id);toast('PayPal sandbox case imported. Check the evidence and deadline before drafting. Nothing was submitted.');
+    }catch(error){$('#paypal-feedback').textContent=error.message;throw error;}
+  });
+});
 $('#seed-cases').addEventListener('click',event=>busy(event.currentTarget,async()=>{await api('/demo/seed',{method:'POST'});state.q='';state.status='';state.page=1;$('#search').value='';$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.status===''));await loadCases();toast('Four synthetic cases loaded. Open a case to try AI drafting and human review.');}));
 $('#check-ai').addEventListener('click',event=>busy(event.currentTarget,async()=>{
   $('#ai-feedback').textContent='Testing with synthetic text. This can take up to 45 seconds…';

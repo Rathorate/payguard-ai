@@ -70,3 +70,20 @@ def test_resolved_event_and_old_snapshot(merchant,app):
     with app.state.sessions() as db:
         assert db.scalar(select(Dispute).where(Dispute.paypal_id=='PP-D-WEBHOOK')).status=='RESOLVED'
 
+
+def test_provider_deadline_change_requires_new_human_review(merchant,app):
+    setup_provider(merchant,app)
+    provider=Mock();provider.details.return_value=resource()
+    merchant.post('/api/v1/webhooks/paypal',json=event());process_one(app.state.sessions,provider)
+    item=merchant.get('/api/v1/disputes?q=PP-D-WEBHOOK').json()['items'][0]
+    url='/api/v1/disputes/'+item['id']
+    merchant.post(url+'/evidence',json={'version':item['version'],'title':'Merchant receipt','kind':'INVOICE','content':'Synthetic merchant receipt records payment only.'})
+    current=merchant.get(url).json()
+    draft=merchant.post(url+'/draft',json={'version':current['version']}).json()
+    approved=merchant.post(url+'/approve',json={'version':draft['version'],'reviewed':True}).json()
+    changed=event();changed['id']='WH-NEW-DEADLINE'
+    provider.details.return_value=resource(seller_response_due_date='2027-02-01T00:00:00Z',update_time='2026-10-22T12:00:00Z')
+    merchant.post('/api/v1/webhooks/paypal',json=changed);process_one(app.state.sessions,provider)
+    current=merchant.get(url).json()
+    assert current['status']=='REVIEW' and current['draft']==approved['draft'] and current['version']>approved['version']
+    assert merchant.post(url+'/submit',json={'version':current['version'],'confirmed':True},headers={'Idempotency-Key':'changed-deadline'}).status_code==409

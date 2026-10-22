@@ -15,10 +15,11 @@ from sqlalchemy.exc import IntegrityError
 from pypdf import PdfReader
 
 from .config import Settings
-from .models import Base, Tenant, User, LoginSession, Dispute, Audit, Webhook, Submission, RateBucket, database
+from .models import Base, Tenant, User, LoginSession, Dispute, Evidence, Audit, Webhook, Submission, RateBucket, database
 from .security import digest, hash_password, verify_password
 from .providers import PayPal, ProviderError, generate_draft
-from .schemas import Credentials, Registration, NewDispute, NewEvidence, Version, DraftEdit, Approval, SubmissionInput
+from .schemas import Credentials, Registration, NewDispute, NewEvidence, Version, DraftEdit, Approval, SubmissionInput, PayPalImport
+from .paypal_import import snapshot as paypal_snapshot
 from .service import audit, get_dispute, evidence_for, transition, editable, add_evidence, serialize, demo_seed
 
 log = logging.getLogger('payguard')
@@ -401,6 +402,49 @@ def create_app(settings=None):
     @app.get('/api/v1/integrations')
     def integrations(who=Depends(principal)):
         return {'mode': 'demo' if settings.demo else 'live', 'paypal_environment': settings.paypal_environment, 'paypal_configured': bool(settings.paypal_client_id and settings.paypal_secret and who[0].tenant_id == settings.paypal_tenant_id), 'webhook_configured': bool(settings.paypal_webhook_id), **settings.ai_status(), 'carrier_verification': False, 'ocr': False}
+
+    def sandbox_merchant(who):
+        if settings.paypal_environment != 'sandbox':
+            raise HTTPException(409, 'This hackathon connection/import flow is sandbox-only')
+        if not settings.paypal_client_id or not settings.paypal_secret:
+            raise HTTPException(409, 'Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET in the backend environment and restart it')
+        if who[0].tenant_id != settings.paypal_tenant_id:
+            raise HTTPException(409, 'Set PAYPAL_TENANT_ID to your workspace ID shown in Integrations, then restart the backend')
+
+    @app.post('/api/v1/integrations/paypal/check')
+    def check_paypal(who=Depends(principal), db=Depends(db_session)):
+        sandbox_merchant(who)
+        rate_limit(db, 'paypal-check:' + who[0].tenant_id, 3, 60)
+        try:
+            result = app.state.paypal.check_sandbox_auth()
+        except ProviderError as exc:
+            raise HTTPException(502, str(exc))
+        audit(db, who[0].tenant_id, who[0].email, 'PAYPAL_SANDBOX_AUTH_VERIFIED', 'sandbox-auth-check')
+        db.commit()
+        return result
+
+    @app.post('/api/v1/paypal/disputes/import', status_code=201)
+    def import_paypal(body: PayPalImport, who=Depends(principal), db=Depends(db_session)):
+        sandbox_merchant(who)
+        tenant = who[0].tenant_id
+        if db.scalar(select(Dispute.id).where(Dispute.tenant_id==tenant, Dispute.paypal_id==body.paypal_id)):
+            raise HTTPException(409, 'This case already exists. Import does not overwrite existing evidence or approvals.')
+        rate_limit(db, 'paypal-import:' + tenant, 10, 60)
+        try:
+            fields, content = paypal_snapshot(app.state.paypal.details(body.paypal_id), body.paypal_id)
+        except ProviderError as exc:
+            raise HTTPException(502, str(exc))
+        item = Dispute(tenant_id=tenant, **fields)
+        db.add(item)
+        try:
+            db.flush()
+            db.add(Evidence(tenant_id=tenant,dispute_id=item.id,title='PayPal sandbox dispute snapshot',kind='OTHER',content=content,sha256=digest(content)))
+            audit(db,tenant,who[0].email,'PAYPAL_SANDBOX_DISPUTE_IMPORTED',item.id)
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(409, 'This case was already imported. Refresh the inbox.')
+        return serialize(item)
 
     @app.post('/api/v1/integrations/ai/check')
     def check_ai(who=Depends(principal), db=Depends(db_session)):

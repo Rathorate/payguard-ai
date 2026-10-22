@@ -66,6 +66,9 @@ def process_one(sessions, paypal):
             elif item.reason != resource['reason'] or item.amount_cents != int(cents) or item.currency != amount['currency_code']:
                 if item.status not in {'SUBMITTING', 'SUBMITTED', 'SUBMISSION_UNKNOWN'}:
                     values.update(status='OPEN', draft='', draft_source='')
+            elif item.due_at != values['due_at'] and item.status == 'APPROVED':
+                # A reviewer explicitly acknowledged the deadline; a changed deadline needs another review.
+                values['status'] = 'REVIEW'
             updated = db.execute(update(Dispute).where(Dispute.id == item.id, Dispute.version == item.version).values(**values, version=item.version + 1))
             if updated.rowcount != 1:
                 raise ValueError('Concurrent dispute edit; retry ingestion')
@@ -93,4 +96,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

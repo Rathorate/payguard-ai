@@ -29,6 +29,10 @@ class NewDispute(Input):
     due_at: int = Field(strict=True, gt=0)
 
 
+class PayPalImport(Input):
+    paypal_id: str = Field(min_length=1, max_length=255, pattern=r'^[A-Za-z0-9-]+$')
+
+
 class NewEvidence(Input):
     title: str = Field(min_length=2, max_length=160)
     kind: Literal['INVOICE', 'TRACKING', 'COMMUNICATION', 'OTHER']

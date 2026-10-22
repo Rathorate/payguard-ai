@@ -40,4 +40,6 @@ Audit actor length now matches the accepted email length (254 characters). Fresh
 
 There is one configured PayPal merchant per deployment, no reconciliation UI for unknown submissions, no original-file retention or image OCR, no carrier proof verification, and no proven million-user capacity. The Starlette TestClient/httpx warning is non-failing development tooling noise; dependency modernization can be done separately with its own regression run.
 
-The hackathon does not need real PayPal access to demonstrate AI assistance and human judgment. Label the provider simulation clearly and avoid claiming a dispute win, independent verification, or live payment-provider acceptance.
+The hackathon requires meaningful PayPal developer platform integration. AI and human judgment can be rehearsed offline, but CSV/manual cases and simulation alone should not be assumed sufficient. Verify an actual sandbox dispute read and demonstrate its data flowing through AI drafting and human review. Confirm eligibility with organizers; avoid claiming provider acceptance or a dispute win.
+
+Sandbox authentication and import now have mocked transport regression coverage. Actual merchant authentication, dispute permissions and sandbox retrieval remain pending credentialed verification. See PAYPAL_SANDBOX.md. The approved MIT license is included.
