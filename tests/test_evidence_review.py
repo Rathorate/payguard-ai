@@ -109,6 +109,26 @@ def test_unknown_references_block_approval_and_legacy_submission(merchant,app):
     assert merchant.get('/api/v1/submissions').json()['items']==[]
 
 
+def test_export_rejects_a_case_changed_while_packet_is_assembled(merchant,app,monkeypatch):
+    import app.main as main
+    from sqlalchemy import update
+    from app.models import Dispute
+    item=first_case(merchant);url='/api/v1/disputes/'+item['id']
+    draft=merchant.post(url+'/draft',json={'version':item['version']}).json()
+    approved=merchant.post(url+'/approve',json={'version':draft['version'],'reviewed':True}).json()
+    original=main.evidence_for;changed=[]
+    def change_during_read(db,tenant,identity):
+        records=original(db,tenant,identity)
+        if not changed:
+            changed.append(True)
+            with app.state.sessions() as other:
+                other.execute(update(Dispute).where(Dispute.id==identity).values(version=approved['version']+1,status='REVIEW'))
+                other.commit()
+        return records
+    monkeypatch.setattr(main,'evidence_for',change_during_read)
+    assert merchant.get(url+'/export',params={'version':approved['version']}).status_code==409
+
+
 @pytest.mark.parametrize('change',[
     lambda r:r.update(extra='unexpected'),
     lambda r:r.update(findings=[]),

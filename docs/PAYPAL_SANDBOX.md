@@ -32,6 +32,8 @@ Keep the terminal open. Open http://127.0.0.1:3001 and sign into the workspace y
 
 ## 4. Verify an actual dispute read
 
+The buyer must be a different sandbox account from the seller. If checkout asks for another account while the Business seller is signed in, use a separate browser profile/private window and sign in with the Personal sandbox email and its generated password. The Developer Dashboard login, sandbox Business account and sandbox Personal account serve different roles. Do not use real credentials or real card data to work around a test login error.
+
 Credentials do not create a dispute. Use the matching sandbox business/seller account and a sandbox personal/buyer account. A sandbox purchase and a dispute supported by the account/test environment may be necessary. Use official sandbox/Resolution Center guidance. A webhook simulator or invented ID does not create a retrievable dispute. If this flow or API access is unavailable, ask PayPal developer support or hackathon organizers for an eligible scenario and report the sanitized error.
 
 For a dispute belonging to the app's seller:

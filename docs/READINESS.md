@@ -44,4 +44,4 @@ There is one configured PayPal merchant per deployment, no reconciliation UI for
 
 The hackathon requires meaningful PayPal developer platform integration. AI and human judgment can be rehearsed offline, but CSV/manual cases and simulation alone should not be assumed sufficient. Verify an actual sandbox dispute read and demonstrate its data flowing through AI drafting and human review. Confirm eligibility with organizers; avoid claiming provider acceptance or a dispute win.
 
-Sandbox authentication and import now have mocked transport regression coverage. Actual merchant authentication, dispute permissions and sandbox retrieval remain pending credentialed verification. See PAYPAL_SANDBOX.md. The approved MIT license is included.
+Sandbox authentication and import have mocked transport regression coverage. The user verified actual sandbox authentication from Ubuntu. Dispute permissions, an actual sandbox purchase/dispute and retrieval remain pending. See PAYPAL_SANDBOX.md. The approved MIT license is included.

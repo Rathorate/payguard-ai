@@ -265,8 +265,8 @@ def create_app(settings=None):
         tenant = who[0].tenant_id
         records = evidence_for(db, tenant, identity)
         analysis = db.scalar(select(EvidenceAnalysis).where(EvidenceAnalysis.tenant_id==tenant, EvidenceAnalysis.dispute_id==identity, EvidenceAnalysis.case_version==item.version))
-        history = list(db.scalars(select(DraftRevision).where(DraftRevision.tenant_id==tenant, DraftRevision.dispute_id==identity).order_by(DraftRevision.case_version.desc()).limit(20)))
-        baseline = db.scalar(select(DraftRevision).where(DraftRevision.tenant_id==tenant, DraftRevision.dispute_id==identity, DraftRevision.action=='GENERATED').order_by(DraftRevision.case_version.desc()).limit(1))
+        history = list(db.scalars(select(DraftRevision).where(DraftRevision.tenant_id==tenant, DraftRevision.dispute_id==identity, DraftRevision.case_version<=item.version).order_by(DraftRevision.case_version.desc()).limit(20)))
+        baseline = db.scalar(select(DraftRevision).where(DraftRevision.tenant_id==tenant, DraftRevision.dispute_id==identity, DraftRevision.case_version<=item.version, DraftRevision.action=='GENERATED').order_by(DraftRevision.case_version.desc()).limit(1))
         return {'case_version': item.version, 'citations': citation_report(item.draft, records),
                 'analysis': {**serialize(analysis), 'report': json.loads(analysis.report)} if analysis else None,
                 'history': [serialize(r) for r in history], 'latest_generated': serialize(baseline) if baseline else None}
@@ -442,6 +442,9 @@ def create_app(settings=None):
                   'notice': 'Prepared for human review/manual use. This export does not submit anything to PayPal.' + (' Demo seed cases and evidence are synthetic.' if settings.demo else ''),
                   'case': serialize(item), 'evidence': [serialize(e) for e in evidence_for(db, who[0].tenant_id, identity)]}
         packet['review'] = review_details(identity, who, db)
+        current = db.execute(select(Dispute.version, Dispute.status).where(Dispute.id==identity, Dispute.tenant_id==who[0].tenant_id)).one()
+        if current.version != version or current.status != 'APPROVED' or packet['review']['case_version'] != version:
+            raise HTTPException(409, 'This case changed during export. Refresh and approve the latest response.')
         packet['sha256'] = digest(json.dumps(packet, sort_keys=True))
         return Response(json.dumps(packet, indent=2), media_type='application/json', headers={'Content-Disposition': f'attachment; filename="payguard-{item.paypal_id}-v{item.version}.json"'})
 

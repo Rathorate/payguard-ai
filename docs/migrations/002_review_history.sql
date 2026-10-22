@@ -1,5 +1,7 @@
 -- Additive migration. Back up the database before applying. No existing rows are rewritten.
 
+BEGIN;
+
 CREATE TABLE draft_revisions (
 	id VARCHAR(36) NOT NULL,
 	tenant_id VARCHAR(36) NOT NULL,
@@ -37,3 +39,5 @@ CREATE TABLE evidence_analyses (
 CREATE INDEX ix_evidence_analyses_dispute_id ON evidence_analyses (dispute_id);
 
 CREATE INDEX ix_evidence_analyses_tenant_id ON evidence_analyses (tenant_id);
+
+COMMIT;
