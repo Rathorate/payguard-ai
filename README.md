@@ -2,6 +2,8 @@
 
 For the local hackathon workflow, Groq setup, review/approval checks and PayPal-free demonstration, see [HACKATHON.md](docs/HACKATHON.md). The frontend and backend remain independently deployable; this rehearsal stays local.
 
+See [readiness and remaining gaps](docs/READINESS.md) for the verified human review flow, real Groq rehearsal, current limits and the work needed before public deployment or real PayPal submission.
+
 A hackathon MVP for merchant dispute operations: accounts, demo fixtures, searchable dispute inbox, evidence text/PDF import, template or optional AI drafting, merchant review, simulated/PayPal submission and audit history.
 
 **Status:** tested MVP with production-oriented controls. Provider acceptance, cloud deployment and scale still require validation. Recorded merchant evidence is not independently carrier-verified.

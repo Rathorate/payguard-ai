@@ -1,3 +1,15 @@
+# Human review hardening and live Groq rehearsal - 22 October 2026
+
+- The user verified a real Groq connection from Ubuntu. A separate browser test on port 3001 confirmed the running app selected Groq and generated a real response for a fresh synthetic case.
+- The draft remained In review. Unchecked approval was blocked. The response was edited to remove irrelevant requests, saved, approved, withdrawn, reapproved, and then submitted only after a separate simulation acknowledgement. The final response was locked, with nothing sent to PayPal.
+- This sample requested an unnecessary tax ID. Drafting instructions were tightened to avoid irrelevant sensitive-data requests and provider-role confusion. The revised instructions pass adapter regressions; wider live quality evaluation remains open.
+- Browser checks of the updated local frontend verified manual evidence saving, Keep editing preserving unsaved text, saving that text, unchecked-review rejection, and deliberate Discard edits preserving the prior saved server response. Case actions now lock editing during pending requests and ignore superseded case loads.
+- Full local API regression: **67 passed, 2 skipped**, 91% line coverage. Both skips require disposable PostgreSQL. The new PostgreSQL regression covers long accepted email addresses in the audit trail; the actor column and fresh schema were widened to 254, with a repair SQL script for older PostgreSQL installations.
+- A later targeted provider regression passed **19 tests** after the prompt update. Four Node tests, JavaScript syntax, frontend build/config checks, contract export and whitespace checks passed. No failing local checks remain in the completed runs.
+- Live PayPal submission and cloud hosting remain unverified. See READINESS.md for the prioritized gaps and current product limits. No deployment was performed.
+
+Earlier records below describe previous builds.
+
 # AI visibility and local retest - 22 October 2026
 
 - Latest full Python suite: **67 passed, 1 skipped**, 91% line coverage. The skip needs disposable PostgreSQL. One non-failing Starlette/httpx deprecation warning remains.

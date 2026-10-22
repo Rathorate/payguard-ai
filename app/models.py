@@ -70,7 +70,7 @@ class Audit(Base):
     __tablename__ = 'audit'
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     tenant_id: Mapped[str] = mapped_column(ForeignKey('tenants.id'), index=True)
-    actor: Mapped[str] = mapped_column(String(100))
+    actor: Mapped[str] = mapped_column(String(254))
     action: Mapped[str] = mapped_column(String(100))
     resource_id: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[int] = mapped_column(Integer, default=lambda: int(time.time()), index=True)
@@ -115,4 +115,3 @@ def database(url):
             connection.execute('PRAGMA foreign_keys=ON')
             connection.execute('PRAGMA journal_mode=WAL')
     return engine, sessionmaker(engine, expire_on_commit=False)
-

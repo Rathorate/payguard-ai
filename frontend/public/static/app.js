@@ -8,6 +8,26 @@ const money = (cents, currency = 'USD') => {try {return new Intl.NumberFormat('e
 const date = seconds => seconds ? new Date(seconds * 1000).toLocaleDateString(undefined, {month:'short',day:'numeric',year:'numeric'}) : 'Check PayPal';
 const badge = status => `<span class="badge ${escape(status)}">${escape(labels[status] || status)}</span>`;
 let toastTimer;
+let casePending=false;
+let caseRequest=0;
+const caseLocks=new Map();
+function lockCaseControls(){
+  for(const control of $$('button,input,textarea,select',$('#case-dialog'))){
+    if(!caseLocks.has(control))caseLocks.set(control,control.disabled);
+    control.disabled=true;
+  }
+}
+function unlockCaseControls(){
+  for(const [control,disabled] of caseLocks)if(control.isConnected)control.disabled=disabled;
+  caseLocks.clear();
+}
+function unsavedDraft(){return $('#case-dialog').open && state.detail && $('#draft-text')?.value!==state.detail.draft;}
+function finishCloseCase(){caseRequest++;$('#case-dialog').close();state.detail=null;}
+function closeCase(){
+  if(casePending){toast('Please wait for the current case action to finish.');return;}
+  if(unsavedDraft()){$('#discard-dialog').showModal();return;}
+  finishCloseCase();
+}
 function toast(message) {const feedback=$('#case-feedback');if(feedback && $('#case-dialog').open){feedback.textContent=message;feedback.hidden=false;}$('#toast').textContent = message; $('#toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => $('#toast').hidden = true, 6500);}
 
 async function api(path, options = {}) {
@@ -30,10 +50,13 @@ async function api(path, options = {}) {
 
 async function busy(button, task) {
   if (button.disabled) return;
+  const inCase=!!button.closest('#case-dialog');
+  if(inCase && casePending)return;
+  if(inCase){casePending=true;lockCaseControls();}
   button.disabled = true;
   const text = button.textContent;
   button.textContent = 'Working…';
-  try {await task();} catch(error) {toast(error.message);} finally {if (button.isConnected) {button.disabled = false; button.textContent = text;}}
+  try {await task();} catch(error) {toast(error.message);} finally {if(inCase){casePending=false;unlockCaseControls();}if (button.isConnected) {button.disabled = false; button.textContent = text;}}
 }
 
 async function enter(user) {
@@ -140,7 +163,10 @@ $('#next-page').addEventListener('click', ()=>{state.page++;loadCases().catch(e=
 $('#case-rows').addEventListener('click', event => {const button=event.target.closest('[data-id]');if(button)openCase(button.dataset.id).catch(e=>toast(e.message));});
 
 async function openCase(id) {
-  const d = await api(`/disputes/${id}`); state.detail=d;
+  const requestId=++caseRequest;
+  const d = await api(`/disputes/${id}`);
+  if(requestId!==caseRequest)return;
+  state.detail=d;
   $('#detail-title').textContent = d.paypal_id;
   const locked = ['SUBMITTED','RESOLVED','SUBMITTING','SUBMISSION_UNKNOWN'].includes(d.status);
   $('#detail-content').innerHTML = `<div class="detail-body"><p id="case-feedback" class="notice" role="status" hidden></p>${badge(d.status)}<div class="detail-meta"><div><span>Customer</span><b>${escape(d.customer)}</b></div><div><span>Disputed amount</span><b>${escape(money(d.amount_cents,d.currency))}</b></div><div><span>Response deadline</span><b>${escape(date(d.due_at))}</b></div></div><p class="small muted">${escape(reasons[d.reason]||d.reason)}</p>
@@ -169,14 +195,19 @@ async function openCase(id) {
       toast('Packet download requested. Nothing was sent to PayPal.');
     }));
   }
-  $('#evidence-form')?.addEventListener('submit',event=>{event.preventDefault();busy($('button',event.target),async()=>{assertSaved();await api(`/disputes/${id}/evidence`,{method:'POST',body:{...Object.fromEntries(new FormData(event.target)),version:version()}});await rerender('Evidence added. Any previous approval has been cleared.');});});
-  $('#upload-form')?.addEventListener('submit',event=>{event.preventDefault();busy($('button',event.target),async()=>{assertSaved();const data=new FormData(event.target);data.set('version',version());await api(`/disputes/${id}/upload`,{method:'POST',body:data});await rerender('PDF text added as evidence.');});});
+  $('#evidence-form')?.addEventListener('submit',event=>{event.preventDefault();const data=Object.fromEntries(new FormData(event.target));busy($('button',event.target),async()=>{assertSaved();await api(`/disputes/${id}/evidence`,{method:'POST',body:{...data,version:version()}});await rerender('Evidence added. Any previous approval has been cleared.');});});
+  $('#upload-form')?.addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.target);busy($('button',event.target),async()=>{assertSaved();data.set('version',version());await api(`/disputes/${id}/upload`,{method:'POST',body:data});await rerender('PDF text added as evidence.');});});
   $('#generate-draft')?.addEventListener('click',event=>busy(event.currentTarget,async()=>{if($('#draft-text').value!==state.detail.draft){toast('Save your edits before generating another draft.');return;}await api(`/disputes/${id}/draft`,{method:'POST',body:{version:version()}});await rerender('Draft created. Review it before approving.');}));
   $('#save-draft')?.addEventListener('click',event=>busy(event.currentTarget,async()=>{await api(`/disputes/${id}/draft`,{method:'PUT',body:{version:version(),text:$('#draft-text').value}});await rerender('Draft edits saved.');}));
   $('#approve-draft')?.addEventListener('click',event=>busy(event.currentTarget,async()=>{if(!$('#review-check').checked)throw new Error('Confirm that you have reviewed the response.');if($('#draft-text').value!==state.detail.draft)throw new Error('Save your draft edits before approving.');await api(`/disputes/${id}/approve`,{method:'POST',body:{version:version(),reviewed:true}});await rerender('Response approved. Ready for your submission.');}));
   $('#submit-case')?.addEventListener('click',event=>busy(event.currentTarget,async()=>{if(!$('#submit-check').checked)throw new Error('Confirm submission using the checkbox.');if($('#draft-text').value!==state.detail.draft)throw new Error('Save and approve your latest edits before submission.');const result=await api(`/disputes/${id}/submit`,{method:'POST',headers:{'Idempotency-Key':`submit-${id}-${version()}`},body:{version:version(),confirmed:true}});await rerender(result.state==='UNKNOWN'?'Provider result is unknown. Reconcile in PayPal before retrying.':state.demo?'Submission simulated successfully.':'Response sent for provider review.');}));
+  if(casePending)lockCaseControls();
 }
-$('#close-case').addEventListener('click',()=>$('#case-dialog').close());
+$('#close-case').addEventListener('click',closeCase);
+$('#case-dialog').addEventListener('cancel',event=>{event.preventDefault();closeCase();});
+$('#keep-editing').addEventListener('click',()=>$('#discard-dialog').close());
+$('#discard-edits').addEventListener('click',()=>{$('#discard-dialog').close();finishCloseCase();});
+window.addEventListener('beforeunload',event=>{if(unsavedDraft()||casePending){event.preventDefault();event.returnValue='';}});
 $('#new-case').addEventListener('click',()=>{$('#new-error').textContent='';$('#new-dialog').showModal();});
 $('#close-new').addEventListener('click',()=>$('#new-dialog').close());
 $('#new-form').addEventListener('submit',event=>{event.preventDefault();busy($('button',event.target),async()=>{

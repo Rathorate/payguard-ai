@@ -15,5 +15,5 @@ ddl=['-- Initial PostgreSQL schema. Use app.manage init-db for a fresh MVP datab
 for table in Base.metadata.sorted_tables:
     ddl.append(str(CreateTable(table).compile(dialect=dialect)).strip()+';')
     ddl.extend(str(CreateIndex(index).compile(dialect=dialect))+';' for index in table.indexes)
-(root/'schema.sql').write_text('\n\n'.join(ddl)+'\n',encoding='utf-8')
+(root/'schema.sql').write_text('\n'.join(line.rstrip() for line in '\n\n'.join(ddl).splitlines())+'\n',encoding='utf-8')
 print('Exported OpenAPI and PostgreSQL DDL')
