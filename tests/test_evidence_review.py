@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from conftest import first_case
 from app.config import Settings
 from app.providers import ProviderError
-from app.review import analyze_evidence, citation_report, validate_analysis
+from app.review import AnalysisValidationError, analyze_evidence, citation_report, validate_analysis
 
 
 def findings(records):
@@ -67,7 +67,9 @@ def test_review_is_private_and_has_csrf_protection(merchant,app):
 def test_hallucinated_analysis_cannot_be_saved(merchant,app):
     item=first_case(merchant);url='/api/v1/disputes/'+item['id']
     app.state.reviewer=lambda settings,case,records:({'findings':[{'category':'RECORDED','statement':'Delivery is verified.','sources':[{'evidence_id':records[0].id,'quote':'Fake carrier verification'}]}]},'GROQ')
-    assert merchant.post(url+'/analyze',json={'version':item['version']}).status_code==502
+    response=merchant.post(url+'/analyze',json={'version':item['version']})
+    assert response.status_code==502 and 'QUOTE_MISMATCH' in response.text
+    assert 'Fake carrier verification' not in response.text
     assert merchant.get(url+'/review').json()['analysis'] is None
     assert merchant.get(url).json()['status']=='OPEN'
 
@@ -153,6 +155,11 @@ def test_groq_review_contract_and_offline_fallback():
         body=json.loads(request.content)
         assert 'untrusted' in body['messages'][0]['content']
         assert json.loads(body['messages'][1]['content'])['evidence'][0]['id']=='e1'
+        shape=body['response_format']['json_schema']
+        assert body['response_format']['type']=='json_schema' and shape['strict'] is True
+        assert shape['schema']['additionalProperties'] is False
+        source=shape['schema']['properties']['findings']['items']['properties']['sources']['items']
+        assert source['properties']['evidence_id']['enum']==['e1']
         return httpx.Response(200,json={'choices':[{'finish_reason':'stop','message':{'content':json.dumps(findings(records))}}]})
     report,source=analyze_evidence(Settings(ai_provider='groq',groq_key='test'),case,records,httpx.MockTransport(handler))
     assert source=='GROQ' and len(report['findings'])==2
@@ -185,3 +192,40 @@ def test_analysis_no_evidence_rate_limits_and_locked_case(merchant,app,frozen_ap
 @pytest.mark.parametrize('text',['not json','```json\n{}\n```','null','[]','{"findings": null}'])
 def test_invalid_model_json_fails_closed(text):
     with pytest.raises(ProviderError):validate_analysis(text,[])
+
+
+@pytest.mark.parametrize('model',['openai/gpt-oss-20b','openai/gpt-oss-120b','llama-3.3-70b-versatile'])
+def test_structured_model_output_still_rejects_invented_quotations(model):
+    records=[SimpleNamespace(id='e1',title='Receipt',content='The receipt records a payment only.')]
+    case=SimpleNamespace(reason='INQUIRY',amount_cents=1000,currency='USD')
+    raw=json.dumps({'findings':[{'category':'RECORDED','statement':'The order was delivered.',
+        'sources':[{'evidence_id':'e1','quote':'The order was delivered.'}]}]})
+    calls=[]
+    def handler(request):
+        body=json.loads(request.content);calls.append(body)
+        assert body['response_format']['type']==('json_schema' if model.startswith('openai/gpt-oss-') else 'json_object')
+        return httpx.Response(200,json={'choices':[{'finish_reason':'stop','message':{'content':raw}}]})
+    with pytest.raises(AnalysisValidationError) as info:
+        analyze_evidence(Settings(ai_provider='groq',groq_key='test',groq_model=model),case,records,httpx.MockTransport(handler))
+    assert len(calls)==1  # No silent retries or weakening of exact-source checks.
+    assert info.value.diagnostic=={'code':'QUOTE_MISMATCH','path':'$.findings[0].sources[0]'}
+    assert info.value.rejected_output==raw
+    assert 'The order was delivered.' not in str(info.value)
+
+
+def test_duplicate_json_keys_and_unknown_ids_have_safe_diagnostics():
+    with pytest.raises(AnalysisValidationError) as info:
+        validate_analysis('{"findings": [], "findings": []}',[])
+    assert info.value.diagnostic['code']=='DUPLICATE_KEY'
+    records=[SimpleNamespace(id='e1',content='Recorded payment only.')]
+    report=findings(records);report['findings'][0]['sources'][0]['evidence_id']='private-model-invention'
+    with pytest.raises(AnalysisValidationError) as info:
+        validate_analysis(json.dumps(report),records)
+    assert info.value.diagnostic['code']=='UNKNOWN_EVIDENCE'
+    assert 'private-model-invention' not in str(info.value)
+
+
+def test_analysis_without_evidence_sends_no_request():
+    with pytest.raises(ProviderError,match='Add evidence'):
+        analyze_evidence(Settings(ai_provider='groq',groq_key='test'),None,[],
+                         httpx.MockTransport(lambda r:pytest.fail('Unexpected provider request')))

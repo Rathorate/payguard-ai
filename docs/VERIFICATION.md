@@ -1,3 +1,14 @@
+# Evidence review structured output and diagnostics - 22 October 2026
+
+- User's Ubuntu regression: 134 Python tests and six Node tests passed; two PostgreSQL tests skipped locally. Live Groq evaluation then rejected receipt-only and untrusted-instructions reviews. Conflicting-delivery and authorization-missing passed mechanical checks; human ratings remained pending. The old evaluator did not retain rejected output, so the exact validation failures cannot be determined from that run.
+- Added strict JSON Schema requests for Groq GPT-OSS 20B/120B evidence analysis, JSON object mode for other Groq models, and explicit verbatim excerpt instructions. Plain-text drafting is unchanged. Independent exact-quote/source validation remains mandatory; no automatic retry or acceptance of altered quotations.
+- Validation errors now provide safe reason codes and field paths. Only the synthetic evaluator retains rejected model text in its local, git-excluded report. Customer-case error responses do not include that content. Duplicate JSON keys are rejected.
+- Updated local regression: **140 passed, 2 skipped**, 91% line coverage, six Node tests passed, frontend deployment-config check with a test HTTPS origin, JavaScript syntax and Python dependency check passed. Both local skips need disposable PostgreSQL; CI runs those separately. One non-failing Starlette TestClient/httpx deprecation warning remains. The final safe-error assertion also passed separately.
+- Live evaluation of this change requires the user's Groq configuration in Ubuntu. Preserve the previous report and run the updated evaluator to a new output path; passing mocked checks is not evidence of live model quality or factual correctness.
+- User verified the correct sandbox app fingerprint 4335355d648c, seller dispute-read scope, dispute list and actual GET of PP-R-SLL-10194090 in WAITING_FOR_SELLER_RESPONSE. App import, current AI-assisted case review and actual seller evidence submission are still unverified. No deployment was performed.
+
+Earlier records describe previous builds.
+
 # Evidence review and human decision history - 22 October 2026
 
 - Full local regression: **134 passed, 2 skipped**, 90% line coverage. Both PostgreSQL tests require CI's disposable database. Six Node tests passed, including escaping of untrusted model findings, quotes, identities and draft text. JavaScript/Bash syntax, frontend build/config and Python dependency checks passed.

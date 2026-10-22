@@ -6,7 +6,7 @@ from time import perf_counter
 from types import SimpleNamespace
 from .config import Settings
 from .providers import ProviderError, generate_draft
-from .review import analyze_evidence, citation_report
+from .review import AnalysisValidationError, analyze_evidence, citation_report
 
 
 def main():
@@ -32,6 +32,10 @@ def main():
             result['mechanical_checks_passed']=not result['citations']['unknown_ids']
         except ProviderError as exc:
             result.update(error=str(exc),mechanical_checks_passed=False)
+            if isinstance(exc, AnalysisValidationError):
+                # This CLI uses only the fixed synthetic fixture file. Never expose
+                # rejected customer-case output through API errors or server logs.
+                result.update(analysis_validation=exc.diagnostic, rejected_analysis=exc.rejected_output)
         result['elapsed_seconds']=round(perf_counter()-start,2)
         results.append(result)
         print(case['name']+': '+('mechanical checks passed; human assessment pending' if result['mechanical_checks_passed'] else result.get('error','Unknown citations found')),flush=True)

@@ -131,17 +131,26 @@ def generate_draft(settings, dispute, evidence, transport=None):
     return generate_text(settings, instructions, payload, transport)
 
 
-def generate_text(settings, instructions, payload, transport=None):
+def generate_text(settings, instructions, payload, transport=None, *, response_schema=None):
     """Shared bounded provider call; callers validate the task-specific output."""
     provider = settings.drafting_provider
     if provider == 'groq':
         if not settings.groq_key or not settings.groq_model:
             raise ProviderError('Set GROQ_API_KEY and GROQ_MODEL before enabling Groq drafting')
+        body = {'model': settings.groq_model,
+                'max_completion_tokens': 4096 if response_schema else 2048,
+                'messages': [{'role': 'system', 'content': instructions}, {'role': 'user', 'content': payload}]}
+        if response_schema:
+            # These deployed Groq models support constrained decoding. Other models
+            # receive JSON mode; all results still pass our independent validator.
+            if settings.groq_model in {'openai/gpt-oss-20b', 'openai/gpt-oss-120b'}:
+                body['response_format'] = {'type': 'json_schema', 'json_schema': {
+                    'name': 'evidence_review', 'strict': True, 'schema': response_schema}}
+            else:
+                body['response_format'] = {'type': 'json_object'}
         try:
             with httpx.Client(timeout=45, transport=transport) as client:
-                response = client.post('https://api.groq.com/openai/v1/chat/completions', headers={'Authorization': 'Bearer ' + settings.groq_key}, json={
-                    'model': settings.groq_model, 'max_completion_tokens': 2048,
-                    'messages': [{'role': 'system', 'content': instructions}, {'role': 'user', 'content': payload}]})
+                response = client.post('https://api.groq.com/openai/v1/chat/completions', headers={'Authorization': 'Bearer ' + settings.groq_key}, json=body)
                 response.raise_for_status()
                 choice = response.json()['choices'][0]
                 text = choice['message']['content']

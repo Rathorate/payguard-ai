@@ -16,6 +16,7 @@ def test_groq_contract_and_provider_selection():
         body = json.loads(request.content)
         assert body['model'] == 'test-model'
         assert 'tools' not in body
+        assert 'response_format' not in body  # Merchant drafts stay plain text.
         assert body['messages'][0]['role'] == 'system' and 'untrusted data' in body['messages'][0]['content']
         assert 'Never approve or submit' in body['messages'][0]['content']
         assert json.loads(body['messages'][1]['content'])['evidence'][0]['content'] == EVIDENCE[0].content
