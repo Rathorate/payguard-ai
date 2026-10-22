@@ -33,11 +33,26 @@ test('frontend serves all UI assets, blocks private paths and retains CSP', asyn
     assert.equal(response.status, 200);
     assert.match(await response.text(), /Open interactive demo/);
     assert.match(response.headers.get('content-security-policy'), /script-src 'self'/);
+    const icon=await fetch(base+'/static/favicon.svg');
+    assert.equal(icon.status,200);
+    assert.match(icon.headers.get('content-type'),/image\/svg\+xml/);
     for (const asset of ['app.js', 'style.css', 'base.css']) assert.equal((await fetch(base + '/static/' + asset)).status, 200);
     for (const path of ['/.env', '/app/config.py', '/%2e%2e%2f.env', '/static/%5c..%5c.env']) assert.equal((await fetch(base + path)).status, 404);
     assert.equal((await fetch(base, {method:'POST'})).status, 405);
     assert.equal((await fetch(base, {method:'HEAD'})).status, 200);
   } finally { await close(server); }
+});
+
+test('HTML input patterns compile under browser Unicode sets and reject an app fingerprint', async () => {
+  const {readFile}=await import('node:fs/promises');
+  const html=await readFile(new URL('../public/index.html',import.meta.url),'utf8');
+  const patterns=[...html.matchAll(/pattern="([^"]+)"/g)].map(match=>match[1]);
+  for(const pattern of patterns) assert.doesNotThrow(()=>new RegExp('^(?:'+pattern+')$','v'));
+  const importer=patterns.find(pattern=>pattern.startsWith('PP-'));
+  const pattern=new RegExp('^(?:'+importer+')$','v');
+  assert.ok(pattern.test('PP-R-SLL-10194090'));
+  assert.ok(pattern.test('PP-D-SANDBOX-42'));
+  assert.ok(!pattern.test('4335355d648c'));
 });
 
 test('proxy preserves query, cookie, CSRF, Origin, multipart bytes and Set-Cookie', async () => {

@@ -7,6 +7,11 @@ from app.providers import ProviderError, ProviderHTTPError
 from app.review import AnalysisValidationError
 
 
+@pytest.fixture(autouse=True)
+def no_real_quota_wait(monkeypatch):
+    monkeypatch.setattr(evaluate_ai,'sleep',lambda seconds:None)
+
+
 def test_synthetic_evaluation_retains_failures_and_pending_human_assessment(tmp_path,monkeypatch):
     output=tmp_path/'report.json';seen=[]
     monkeypatch.setattr(evaluate_ai,'Settings',lambda:Settings(ai_provider='groq',groq_key='test'))
@@ -99,3 +104,24 @@ def test_evaluation_distinguishes_linked_citations_from_parentheses_or_no_refere
     assert result['mechanical_failures']==expected
     assert result['mechanical_checks_passed'] is (not expected)
     assert result['human_pass'] is None
+
+
+def test_evaluation_paces_requests_and_stops_after_rate_limit(tmp_path,monkeypatch):
+    output=tmp_path/'limited.json';pauses=[];calls=[]
+    monkeypatch.setattr(evaluate_ai,'sleep',pauses.append)
+    monkeypatch.setattr(evaluate_ai,'Settings',lambda:Settings(ai_provider='groq',groq_key='test'))
+    def draft(settings,case,records):
+        calls.append('draft')
+        return 'Merchant receipt records payment ['+records[0].id+'].','GROQ'
+    def review(*args):
+        calls.append('analysis')
+        raise ProviderHTTPError('Groq quota reached',{'status':429,'retry_after_seconds':60})
+    monkeypatch.setattr(evaluate_ai,'generate_draft',draft)
+    monkeypatch.setattr(evaluate_ai,'analyze_evidence',review)
+    monkeypatch.setattr(sys,'argv',['evaluate-ai','--output',str(output)])
+    with pytest.raises(SystemExit):evaluate_ai.main()
+    report=json.loads(output.read_text())
+    assert calls==['draft','analysis'] and pauses==[35]
+    assert report['ai_calls']==2 and len(report['results'])==4
+    assert all(r['failed_stage']=='not_run' for r in report['results'][1:])
+    assert all(not r['mechanical_checks_passed'] for r in report['results'])

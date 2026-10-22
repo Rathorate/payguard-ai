@@ -1220,7 +1220,7 @@
             "type": "string",
             "maxLength": 255,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9-]+$",
+            "pattern": "^PP-[DR]-[A-Za-z0-9-]+$",
             "title": "Paypal Id"
           }
         },

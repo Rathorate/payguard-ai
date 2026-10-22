@@ -57,7 +57,7 @@ export function createFrontendServer(origin) {
       const file = await realpath(resolve(publicDirectory, '.' + path));
       const root = await realpath(publicDirectory);
       if (!file.startsWith(root + sep) || !(await stat(file)).isFile()) throw new Error('Not a public asset');
-      const types = {'.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.css':'text/css; charset=utf-8', '.png':'image/png'};
+      const types = {'.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.css':'text/css; charset=utf-8', '.png':'image/png', '.svg':'image/svg+xml'};
       response.writeHead(200, {'Content-Type':types[extname(file)] || 'application/octet-stream'});
       if (request.method === 'HEAD') response.end();
       else createReadStream(file).on('error', () => response.destroy()).pipe(response);

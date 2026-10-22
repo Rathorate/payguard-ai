@@ -30,7 +30,7 @@ class NewDispute(Input):
 
 
 class PayPalImport(Input):
-    paypal_id: str = Field(min_length=1, max_length=255, pattern=r'^[A-Za-z0-9-]+$')
+    paypal_id: str = Field(min_length=1, max_length=255, pattern=r'^PP-[DR]-[A-Za-z0-9-]+$')
 
 
 class NewEvidence(Input):

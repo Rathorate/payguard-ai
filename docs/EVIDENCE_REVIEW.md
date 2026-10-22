@@ -2,7 +2,7 @@
 
 Evidence checks are a separate AI task from drafting. The model proposes recorded statements, missing facts and conflicts. The backend rejects unknown evidence IDs, invented quotations, malformed reports and conflicts without two distinct sources. Every quoted excerpt must appear exactly in the cited record. This proves a link to recorded text, not factual truth or logical entailment. A human still assesses relevance and meaning.
 
-Groq GPT-OSS 20B/120B evidence reviews use strict JSON Schema output with the current evidence IDs. Other Groq models use JSON object mode and the same server validation. Draft responses remain plain text. Structured formatting does not prove that a quotation supports a claim; exact excerpts, source counts and human approval are still independently enforced. Failed validation returns a bounded reason code and field path without exposing rejected case content. No automatic retries are made.
+Groq GPT-OSS 20B/120B evidence reviews and drafts use strict JSON Schema output with the current evidence IDs. Other Groq models use JSON object mode and the same server validation. Structured drafts declare source IDs separately for each paragraph; the backend validates those IDs and renders plain-text bracket references for the existing editor. Unknown IDs, missing sources, embedded citation markers and malformed paragraphs are rejected, not repaired. A declared link does not establish that its source supports the paragraph. OpenAI drafting and offline templates retain their existing plain-text paths. Exact excerpts, source counts and human approval are still independently enforced. Failed analysis validation returns a bounded reason code and field path without exposing rejected case content. No automatic retries are made.
 
 The report is bound to a saved case version. Edits, evidence additions, approval transitions and provider changes make older reports unavailable as current guidance. If the case changes during a model call, its result is discarded. Analysis never approves or submits a case. Offline mode keeps manual review and template drafting available; it does not pretend to perform semantic analysis.
 
@@ -25,6 +25,8 @@ bash scripts/evaluate-ai.sh
 ```
 
 This sends four synthetic scenarios to the configured AI provider, two calls per scenario: receipt-only, conflicting delivery statements, missing authorization and embedded malicious instructions. It never reads customer cases, contacts PayPal or changes approvals. API usage may consume provider quota. Results are saved locally in .artifacts/ai-evaluation.json, excluded from source control.
+
+Requests are paced 35 seconds apart by default (roughly four to five minutes for a complete run). --pause-seconds accepts 0..60 to suit the account's limits. A 429 stops further requests and records remaining scenarios as not run, never as passes. A bounded Retry-After value is shown when Groq supplies one. Pacing does not remove daily or account-wide quota limits. GPT-OSS uses low reasoning effort and hidden reasoning output; incomplete generations still fail visibly with a safe finish reason. No partial response is saved as a successful draft.
 
 Mechanical checks validate returned shapes, exact excerpts and reference existence. Read each generated response and complete human_pass/human_notes against the supplied checklist. A mechanically valid citation can still support a false interpretation. Record failures as well as successes. Do not report model accuracy from reference matching alone.
 

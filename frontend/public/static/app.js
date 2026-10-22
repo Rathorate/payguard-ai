@@ -155,12 +155,19 @@ $('#check-paypal').addEventListener('click',event=>busy(event.currentTarget,asyn
 }));
 $('#paypal-import-form').addEventListener('submit',event=>{
   event.preventDefault();const body=Object.fromEntries(new FormData(event.target));
+  body.paypal_id=String(body.paypal_id||'').trim();
+  if(!/^PP-[DR]-[A-Za-z0-9-]+$/.test(body.paypal_id)){
+    $('#paypal-import-feedback').textContent='Enter the PayPal dispute ID (for example PP-R-SLL-10194090), not the app fingerprint or Client ID.';
+    return;
+  }
+  $('#paypal-import-feedback').textContent='Importing the PayPal sandbox dispute…';
   busy($('button',event.target),async()=>{
     try{
       const item=await api('/paypal/disputes/import',{method:'POST',body});
+      $('#paypal-import-feedback').textContent='Sandbox case imported. No evidence was submitted.';
       state.view='disputes';state.page=1;state.q='';state.status='';$('#search').value='';$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.status===''));
       await loadView();await openCase(item.id);toast('PayPal sandbox case imported. Check the evidence and deadline before drafting. Nothing was submitted.');
-    }catch(error){$('#paypal-feedback').textContent=error.message;throw error;}
+    }catch(error){$('#paypal-import-feedback').textContent=error.message;throw error;}
   });
 });
 $('#seed-cases').addEventListener('click',event=>busy(event.currentTarget,async()=>{await api('/demo/seed',{method:'POST'});state.q='';state.status='';state.page=1;$('#search').value='';$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.status===''));await loadCases();toast('Four synthetic cases loaded. Open a case to try AI drafting and human review.');}));

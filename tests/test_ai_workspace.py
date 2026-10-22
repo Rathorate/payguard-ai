@@ -49,7 +49,7 @@ def test_ai_connection_check_uses_synthetic_data_without_changing_cases(merchant
         assert b'SYNTHETIC CONNECTION TEST' in request.content
         assert b'PP-D-CONNECTION-TEST' in request.content
         assert b'@demo.invalid' not in request.content
-        return httpx.Response(200,json={'choices':[{'finish_reason':'stop','message':{'content':'Synthetic receipt records payment. Delivery and authorization remain unverified.'}}]})
+        return httpx.Response(200,json={'choices':[{'finish_reason':'stop','message':{'content':__import__('json').dumps({'paragraphs':[{'text':'Synthetic receipt records payment. Delivery and authorization remain unverified.','evidence_ids':['SAMPLE-RECEIPT']}],'missing_facts':[]})}}]})
     app.state.drafter = lambda settings,item,records:generate_draft(settings,item,records,httpx.MockTransport(handler))
     before = merchant.get('/api/v1/disputes').json()
     assert merchant.post('/api/v1/integrations/ai/check',headers={'X-CSRF-Token':'wrong'}).status_code == 403

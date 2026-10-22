@@ -17,7 +17,7 @@ from pypdf import PdfReader
 from .config import Settings
 from .models import Base, Tenant, User, LoginSession, Dispute, Evidence, Audit, Webhook, Submission, RateBucket, DraftRevision, EvidenceAnalysis, database
 from .security import digest, hash_password, verify_password
-from .providers import PayPal, ProviderError, generate_draft
+from .providers import PayPal, ProviderError, ProviderHTTPError, generate_draft
 from .schemas import Credentials, Registration, NewDispute, NewEvidence, Version, DraftEdit, Approval, SubmissionInput, PayPalImport
 from .paypal_import import snapshot as paypal_snapshot
 from .review import analyze_evidence, citation_report, validate_analysis
@@ -491,7 +491,8 @@ def create_app(settings=None):
         try:
             fields, content = paypal_snapshot(app.state.paypal.details(body.paypal_id), body.paypal_id)
         except ProviderError as exc:
-            raise HTTPException(502, str(exc))
+            status=404 if isinstance(exc,ProviderHTTPError) and exc.diagnostic.get('status')==404 else 502
+            raise HTTPException(status, str(exc))
         item = Dispute(tenant_id=tenant, **fields)
         db.add(item)
         try:

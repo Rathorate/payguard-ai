@@ -78,7 +78,7 @@ def test_provider_failure_preserves_cases_and_sanitizes_errors(merchant, app, co
     connect(merchant,app,handler)
     before=merchant.get('/api/v1/disputes').json()
     response=merchant.post('/api/v1/paypal/disputes/import',json={'paypal_id':'PP-D-SANDBOX-42'})
-    assert response.status_code==502 and str(code) in response.json()['detail']
+    assert response.status_code==(404 if code==404 else 502) and str(code) in response.json()['detail']
     assert 'private-upstream-secret' not in response.text
     assert merchant.get('/api/v1/disputes').json()==before
 
@@ -111,9 +111,10 @@ def test_auth_diagnostic_never_uses_live_or_missing_credentials():
     with pytest.raises(ProviderError):PayPal(Settings(),httpx.MockTransport(forbidden)).check_sandbox_auth()
 
 
-def test_import_bad_id_rejected_before_request(merchant,app):
+@pytest.mark.parametrize('identity',['../../bad','4335355d648c','client-id','PP-R-'])
+def test_import_bad_id_rejected_before_request(merchant,app,identity):
     calls=connect(merchant,app)
-    assert merchant.post('/api/v1/paypal/disputes/import',json={'paypal_id':'../../bad'}).status_code==422
+    assert merchant.post('/api/v1/paypal/disputes/import',json={'paypal_id':identity}).status_code==422
     assert calls==[]
 
 

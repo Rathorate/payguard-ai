@@ -16,13 +16,13 @@ def test_groq_contract_and_provider_selection():
         body = json.loads(request.content)
         assert body['model'] == 'test-model'
         assert 'tools' not in body
-        assert 'response_format' not in body  # Merchant drafts stay plain text.
+        assert body['response_format']['type'] == 'json_object'  # Other models still receive bounded JSON.
         assert body['messages'][0]['role'] == 'system' and 'untrusted data' in body['messages'][0]['content']
         assert 'Never approve or submit' in body['messages'][0]['content']
         assert json.loads(body['messages'][1]['content'])['evidence'][0]['content'] == EVIDENCE[0].content
-        return httpx.Response(200,json={'choices':[{'finish_reason':'stop','message':{'content':'Merchant response based on receipt [e1].'}}]})
+        return httpx.Response(200,json={'choices':[{'finish_reason':'stop','message':{'content':json.dumps({'paragraphs':[{'text':'Merchant response based on receipt.','evidence_ids':['e1']}],'missing_facts':[]})}}]})
     settings = Settings(ai_provider='groq',groq_key='test-only',groq_model='test-model')
-    assert generate_draft(settings,DISPUTE,EVIDENCE,httpx.MockTransport(handler)) == ('Merchant response based on receipt [e1].','GROQ')
+    assert generate_draft(settings,DISPUTE,EVIDENCE,httpx.MockTransport(handler)) == ('Merchant response based on receipt. [e1]','GROQ')
     assert Settings(groq_key='x',openai_key='y').drafting_provider == 'groq'
     assert Settings(ai_provider='template',groq_key='x').drafting_provider == 'template'
     assert generate_draft(Settings(ai_provider='template',groq_key='x'),DISPUTE,EVIDENCE)[1] == 'TEMPLATE'
@@ -72,6 +72,15 @@ def test_groq_timeout_and_invalid_json():
         with pytest.raises(ProviderError): generate_draft(Settings(ai_provider='groq',groq_key='test'),DISPUTE,EVIDENCE,httpx.MockTransport(handler))
 
 
+def test_groq_quota_diagnostic_includes_only_bounded_retry_seconds():
+    for value,expected in [('60',60),('private-key',None),('999999999',None)]:
+        with pytest.raises(ProviderHTTPError) as info:
+            generate_draft(Settings(ai_provider='groq',groq_key='test'),DISPUTE,EVIDENCE,
+                httpx.MockTransport(lambda r:httpx.Response(429,headers={'retry-after':value},json={})))
+        assert info.value.diagnostic.get('retry_after_seconds')==expected
+        assert 'private-key' not in str(info.value)
+
+
 def test_integration_reports_groq_without_secrets(merchant, app):
     app.state.settings.ai_provider = 'groq'
     app.state.settings.groq_key = 'never-expose-this-key'
@@ -84,7 +93,12 @@ def test_groq_draft_cannot_approve_or_submit_itself(merchant, app):
     from conftest import first_case
     app.state.settings.ai_provider = 'groq'
     app.state.settings.groq_key = 'test-only'
-    transport = httpx.MockTransport(lambda request:httpx.Response(200,json={'choices':[{'finish_reason':'stop','message':{'content':'Merchant invoice records payment; authorization has not been verified.'}}]}))
+    def response(request):
+        identity=json.loads(request.content)['messages'][1]['content']
+        identity=json.loads(identity)['evidence'][0]['id']
+        content=json.dumps({'paragraphs':[{'text':'Merchant invoice records payment; authorization has not been verified.','evidence_ids':[identity]}],'missing_facts':[]})
+        return httpx.Response(200,json={'choices':[{'finish_reason':'stop','message':{'content':content}}]})
+    transport = httpx.MockTransport(response)
     app.state.drafter = lambda settings,item,evidence:generate_draft(settings,item,evidence,transport)
     item = first_case(merchant)
     url = '/api/v1/disputes/' + item['id']
