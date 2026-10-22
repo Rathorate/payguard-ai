@@ -29,6 +29,7 @@ jobs:
         env:
           TEST_POSTGRES_URL: postgresql+psycopg://payguard:test-only-password@localhost/payguard
       - run: node --check frontend/public/static/app.js
+      - run: node --check frontend/public/static/review-ui.js
       - run: node --test frontend/tests/*.test.mjs
       - run: node frontend/check.mjs
         env:

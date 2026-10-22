@@ -1,3 +1,15 @@
+# Evidence review and human decision history - 22 October 2026
+
+- Full local regression: **122 passed, 2 skipped**, 91% line coverage. Both PostgreSQL tests require CI's disposable database. Six Node tests passed, including escaping of untrusted model findings, quotes, identities and draft text. JavaScript/Bash syntax, frontend build/config and Python dependency checks passed.
+- New evidence analysis accepts only bounded findings with exact excerpts from existing source records; conflicts require two distinct records. Tests cover hallucinated excerpts, invalid JSON, stale model results, private tenant access, CSRF, caching, limits and immutable submitted/resolved cases. Analysis never approves or submits.
+- Unknown draft references block approval and submission. Paragraph source linking does not establish claim truth. Draft revisions retain generation, edits, approvals and withdrawals with version/actor/time; approved packet exports include review history. Earlier builds have no reconstructed history.
+- Browser verification on separate local ports 3102/8102 confirmed offline analysis errors preserve the case, template generation creates history, citation links expand the source, human saves flag unknown references, and the original output remains visible beside the edited response. These browser checks used templates, not a live Groq analysis call.
+- Added a four-case synthetic Groq/OpenAI evaluation runner, with mechanical checks and pending human ratings. Its orchestration/failure handling is mocked in tests; actual live quality evaluation remains pending on the user's configured Ubuntu environment.
+- The user independently verified actual PayPal sandbox OAuth authentication. A $10 sandbox product checkout link was prepared in the seller dashboard. No completed test purchase, real dispute retrieval, evidence submission or cloud deployment has yet been verified.
+- Additive migration 002_review_history.sql and refreshed schema/OpenAPI are included. Demo startup adds missing tables; non-demo installations need the explicit migration.
+
+Earlier records describe previous builds.
+
 # PayPal sandbox integration - 22 October 2026
 
 - Local Python regression: **96 passed, 2 skipped**, 90% line coverage. The two PostgreSQL tests require a disposable database and run separately in CI. One non-failing Starlette TestClient/httpx warning remains.

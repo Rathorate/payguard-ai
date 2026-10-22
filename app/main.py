@@ -15,11 +15,12 @@ from sqlalchemy.exc import IntegrityError
 from pypdf import PdfReader
 
 from .config import Settings
-from .models import Base, Tenant, User, LoginSession, Dispute, Evidence, Audit, Webhook, Submission, RateBucket, database
+from .models import Base, Tenant, User, LoginSession, Dispute, Evidence, Audit, Webhook, Submission, RateBucket, DraftRevision, EvidenceAnalysis, database
 from .security import digest, hash_password, verify_password
 from .providers import PayPal, ProviderError, generate_draft
 from .schemas import Credentials, Registration, NewDispute, NewEvidence, Version, DraftEdit, Approval, SubmissionInput, PayPalImport
 from .paypal_import import snapshot as paypal_snapshot
+from .review import analyze_evidence, citation_report, validate_analysis
 from .service import audit, get_dispute, evidence_for, transition, editable, add_evidence, serialize, demo_seed
 
 log = logging.getLogger('payguard')
@@ -42,6 +43,7 @@ def create_app(settings=None):
     app.state.settings, app.state.sessions, app.state.engine = settings, sessions, engine
     app.state.paypal = PayPal(settings)
     app.state.drafter = generate_draft
+    app.state.reviewer = analyze_evidence
 
     # ASGI body cap also covers chunked uploads; never trust Content-Length alone.
     class BodyLimit:
@@ -257,6 +259,50 @@ def create_app(settings=None):
         item = get_dispute(db, who[0].tenant_id, identity)
         return {**serialize(item), 'evidence': [serialize(e) for e in evidence_for(db, who[0].tenant_id, identity)]}
 
+    @app.get('/api/v1/disputes/{identity}/review')
+    def review_details(identity: str, who=Depends(principal), db=Depends(db_session)):
+        item = get_dispute(db, who[0].tenant_id, identity)
+        tenant = who[0].tenant_id
+        records = evidence_for(db, tenant, identity)
+        analysis = db.scalar(select(EvidenceAnalysis).where(EvidenceAnalysis.tenant_id==tenant, EvidenceAnalysis.dispute_id==identity, EvidenceAnalysis.case_version==item.version))
+        history = list(db.scalars(select(DraftRevision).where(DraftRevision.tenant_id==tenant, DraftRevision.dispute_id==identity).order_by(DraftRevision.case_version.desc()).limit(20)))
+        baseline = db.scalar(select(DraftRevision).where(DraftRevision.tenant_id==tenant, DraftRevision.dispute_id==identity, DraftRevision.action=='GENERATED').order_by(DraftRevision.case_version.desc()).limit(1))
+        return {'case_version': item.version, 'citations': citation_report(item.draft, records),
+                'analysis': {**serialize(analysis), 'report': json.loads(analysis.report)} if analysis else None,
+                'history': [serialize(r) for r in history], 'latest_generated': serialize(baseline) if baseline else None}
+
+    @app.post('/api/v1/disputes/{identity}/analyze')
+    def analyze(identity: str, body: Version, who=Depends(principal), db=Depends(db_session)):
+        item = get_dispute(db, who[0].tenant_id, identity)
+        editable(item)
+        if item.version != body.version:
+            raise HTTPException(409, 'This case changed. Refresh before analyzing evidence.')
+        records = evidence_for(db, who[0].tenant_id, identity)
+        if not records:
+            raise HTTPException(422, 'Add evidence before analyzing it')
+        existing = db.scalar(select(EvidenceAnalysis).where(EvidenceAnalysis.tenant_id==who[0].tenant_id, EvidenceAnalysis.dispute_id==identity, EvidenceAnalysis.case_version==body.version))
+        if existing:
+            return {**serialize(existing), 'report': json.loads(existing.report)}
+        rate_limit(db, 'analyze:'+who[0].tenant_id, 5, 60)
+        try:
+            report, source = app.state.reviewer(settings, item, records)
+            report = validate_analysis(json.dumps(report), records)
+        except ProviderError as exc:
+            raise HTTPException(502, str(exc))
+        # Conditional write serializes with edits; stale results cannot describe a newer case.
+        result = db.execute(update(Dispute).where(Dispute.id==identity, Dispute.tenant_id==who[0].tenant_id, Dispute.version==body.version).values(version=body.version))
+        if result.rowcount != 1:
+            raise HTTPException(409, 'The case changed during analysis. Refresh; nothing was approved.')
+        record = EvidenceAnalysis(tenant_id=who[0].tenant_id, dispute_id=identity, case_version=body.version, source=source, report=json.dumps(report))
+        db.add(record)
+        audit(db, who[0].tenant_id, who[0].email, 'EVIDENCE_ANALYZED_'+source, identity)
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(409, 'Another review was saved. Refresh this case.')
+        return {**serialize(record), 'report': report}
+
     @app.post('/api/v1/disputes/{identity}/evidence', status_code=201)
     def evidence(identity: str, body: NewEvidence, who=Depends(principal), db=Depends(db_session)):
         item = get_dispute(db, who[0].tenant_id, identity)
@@ -299,6 +345,7 @@ def create_app(settings=None):
         except ProviderError as exc:
             raise HTTPException(502, str(exc))
         transition(db, item, body.version, draft=text, draft_source=source, status='REVIEW')
+        db.add(DraftRevision(tenant_id=who[0].tenant_id, dispute_id=identity, case_version=body.version+1, action='GENERATED', source=source, text=text, actor=who[0].email))
         audit(db, who[0].tenant_id, who[0].email, 'DRAFT_GENERATED_' + source, identity)
         db.commit()
         db.refresh(item)
@@ -311,6 +358,7 @@ def create_app(settings=None):
         if not evidence_for(db, who[0].tenant_id, identity):
             raise HTTPException(422, 'Add evidence before writing a defense')
         transition(db, item, body.version, draft=body.text, draft_source='MERCHANT', status='REVIEW')
+        db.add(DraftRevision(tenant_id=who[0].tenant_id, dispute_id=identity, case_version=body.version+1, action='EDITED', source='MERCHANT', text=body.text, actor=who[0].email))
         audit(db, who[0].tenant_id, who[0].email, 'DRAFT_EDITED', identity)
         db.commit()
         db.refresh(item)
@@ -321,7 +369,10 @@ def create_app(settings=None):
         item = get_dispute(db, who[0].tenant_id, identity)
         if item.status != 'REVIEW' or not item.draft:
             raise HTTPException(409, 'A draft must be reviewed first')
+        if citation_report(item.draft, evidence_for(db, who[0].tenant_id, identity))['unknown_ids']:
+            raise HTTPException(422, 'Correct unknown evidence references in the saved response before approval')
         transition(db, item, body.version, status='APPROVED')
+        db.add(DraftRevision(tenant_id=who[0].tenant_id, dispute_id=identity, case_version=body.version+1, action='APPROVED', source=item.draft_source, text=item.draft, actor=who[0].email))
         audit(db, who[0].tenant_id, who[0].email, 'DRAFT_APPROVED', identity)
         db.commit()
         db.refresh(item)
@@ -343,6 +394,8 @@ def create_app(settings=None):
         if not settings.demo and tenant != settings.paypal_tenant_id:
             raise HTTPException(409, 'This workspace has no connected PayPal account')
         records = evidence_for(db, tenant, identity)
+        if citation_report(item.draft, records)['unknown_ids']:
+            raise HTTPException(422, 'Correct unknown evidence references and approve the response again before submission')
         transition(db, item, body.version, status='SUBMITTING')
         submission = Submission(tenant_id=tenant, dispute_id=identity, request_key=idempotency_key, draft_version=body.version)
         db.add(submission)
@@ -374,6 +427,7 @@ def create_app(settings=None):
         if item.status != 'APPROVED':
             raise HTTPException(409, 'Only an approved response can be returned for review')
         transition(db, item, body.version, status='REVIEW')
+        db.add(DraftRevision(tenant_id=who[0].tenant_id, dispute_id=identity, case_version=body.version+1, action='WITHDRAWN', source=item.draft_source, text=item.draft, actor=who[0].email))
         audit(db, who[0].tenant_id, who[0].email, 'APPROVAL_WITHDRAWN', identity)
         db.commit()
         db.refresh(item)
@@ -387,6 +441,7 @@ def create_app(settings=None):
         packet = {'format': 'payguard.reviewed-packet.v1', 'mode': 'demo' if settings.demo else 'live',
                   'notice': 'Prepared for human review/manual use. This export does not submit anything to PayPal.' + (' Demo seed cases and evidence are synthetic.' if settings.demo else ''),
                   'case': serialize(item), 'evidence': [serialize(e) for e in evidence_for(db, who[0].tenant_id, identity)]}
+        packet['review'] = review_details(identity, who, db)
         packet['sha256'] = digest(json.dumps(packet, sort_keys=True))
         return Response(json.dumps(packet, indent=2), media_type='application/json', headers={'Content-Disposition': f'attachment; filename="payguard-{item.paypal_id}-v{item.version}.json"'})
 

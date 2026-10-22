@@ -76,6 +76,32 @@ class Audit(Base):
     created_at: Mapped[int] = mapped_column(Integer, default=lambda: int(time.time()), index=True)
 
 
+class DraftRevision(Base):
+    __tablename__ = 'draft_revisions'
+    __table_args__ = (UniqueConstraint('dispute_id', 'case_version'),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey('tenants.id'), index=True)
+    dispute_id: Mapped[str] = mapped_column(ForeignKey('disputes.id'), index=True)
+    case_version: Mapped[int] = mapped_column(Integer)
+    action: Mapped[str] = mapped_column(String(32))
+    source: Mapped[str] = mapped_column(String(32))
+    text: Mapped[str] = mapped_column(Text)
+    actor: Mapped[str] = mapped_column(String(254))
+    created_at: Mapped[int] = mapped_column(Integer, default=lambda: int(time.time()))
+
+
+class EvidenceAnalysis(Base):
+    __tablename__ = 'evidence_analyses'
+    __table_args__ = (UniqueConstraint('dispute_id', 'case_version'),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey('tenants.id'), index=True)
+    dispute_id: Mapped[str] = mapped_column(ForeignKey('disputes.id'), index=True)
+    case_version: Mapped[int] = mapped_column(Integer)
+    source: Mapped[str] = mapped_column(String(32))
+    report: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[int] = mapped_column(Integer, default=lambda: int(time.time()))
+
+
 class Webhook(Base):
     __tablename__ = 'webhook_inbox'
     __table_args__ = (UniqueConstraint('tenant_id', 'event_id'),)

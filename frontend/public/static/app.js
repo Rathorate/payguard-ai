@@ -1,3 +1,4 @@
+import {renderReview, revealEvidence} from './review-ui.js';
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const state = {csrf: '', user: null, demo: false, status: '', page: 1, q: '', detail: null, view: 'disputes', loadId: 0, ai: null};
@@ -180,8 +181,9 @@ $('#case-rows').addEventListener('click', event => {const button=event.target.cl
 
 async function openCase(id) {
   const requestId=++caseRequest;
-  const d = await api(`/disputes/${id}`);
+  const [d, review] = await Promise.all([api(`/disputes/${id}`),api(`/disputes/${id}/review`)]);
   if(requestId!==caseRequest)return;
+  if(d.version!==review.case_version)throw new Error('The case changed while loading. Open it again to review the latest version.');
   state.detail=d;
   $('#detail-title').textContent = d.paypal_id;
   const locked = ['SUBMITTED','RESOLVED','SUBMITTING','SUBMISSION_UNKNOWN'].includes(d.status);
@@ -190,10 +192,20 @@ async function openCase(id) {
     ${!locked?`<details class="evidence-item"><summary>+ Add a record</summary><form id="evidence-form"><label>Title<input name="title" required minlength="2" maxlength="160" placeholder="Order invoice or delivery statement"></label><label>Type<select name="kind"><option>INVOICE</option><option>TRACKING</option><option>COMMUNICATION</option><option>OTHER</option></select></label><label>Facts / source text<textarea name="content" required minlength="5" maxlength="8000" placeholder="Paste the relevant facts and source details. Do not include unnecessary personal information."></textarea></label><button class="secondary">Save evidence</button></form></details><form id="upload-form"><label class="upload-label">Or extract text from a PDF<input name="file" type="file" accept="application/pdf" required><small>Up to 5 MB / 20 pages. Image-only documents need OCR.</small></label><button class="secondary compact">Extract & add</button></form>`:''}</section>
     <section class="section-box"><div class="section-top"><h3><span class="step">2</span> Response draft</h3>${!locked?`<button class="secondary compact" id="generate-draft">${state.ai?.ai_configured?'✦ Generate AI draft':'Generate template draft'}</button>`:''}</div><p class="muted">${['OPENAI','GROQ'].includes(d.draft_source)?`${escape(d.draft_source)} draft. Verify every assertion and evidence reference.`:d.draft_source==='MERCHANT'?'Edited by merchant. Review before approval.':'Template drafting works without an API key. AI drafting is optional.'}</p><label for="draft-text" class="sr-only">Defense draft</label><textarea id="draft-text" rows="10" maxlength="12000" placeholder="Add evidence, then generate or write your response." ${locked?'readonly':''}>${escape(d.draft)}</textarea><p class="small muted" id="draft-save-status" role="status">${locked?'Response locked after submission.':'You are reviewing the saved response shown above.'}</p>${!locked?'<div class="actions"><button class="secondary" id="save-draft">Save edits</button></div>':''}</section>
     <section class="section-box"><h3><span class="step">3</span> Review & respond</h3><p class="muted">Approval applies to the current version. Changing evidence or the draft requires a new review.</p>${d.status==='REVIEW'?'<label class="check-label"><input type="checkbox" id="review-check">I checked the facts, evidence references, and response deadline.</label><button class="primary" id="approve-draft">Approve response →</button>':''}${d.status==='APPROVED'?`<label class="check-label"><input type="checkbox" id="submit-check">${state.demo?'I understand this simulates submission.':'I confirm this response should be sent to PayPal.'}</label><button class="primary" id="submit-case">${state.demo?'Simulate submission':'Send response to PayPal'} →</button>`:''}${d.status==='OPEN'?'<p class="notice">Add evidence and save a draft to start your review.</p>':''}${d.status==='SUBMITTED'?`<p class="notice">${state.demo?'Demo submission complete. Nothing was sent to PayPal.':'Response sent to PayPal for review. Submission does not mean the dispute is won.'}</p>`:''}${['SUBMISSION_UNKNOWN','SUBMITTING'].includes(d.status)?'<p class="notice">This case needs reconciliation. Check PayPal and the submission record before taking further action. Automatic retries are disabled.</p>':''}${d.status==='RESOLVED'?'<p class="notice">PayPal reports this case is resolved.</p>':''}</section><p class="small muted">Case version ${d.version} · No automated eligibility or win-rate assessment.</p></div>`;
+  const reviewPanel=document.createElement('div');reviewPanel.innerHTML=renderReview(d,review,locked);
+  const sections=$$('.section-box', $('.detail-body'));
+  const [checks,citations,history]=[...reviewPanel.children];
+  sections[0].after(checks);sections[1].after(citations);sections[2].after(history);
+  $$('.evidence-item', $('.detail-body')).forEach(element=>{
+    const record=d.evidence.find(e=>$('small',element)?.textContent===`Evidence ID: ${e.id}`);
+    if(record){element.dataset.evidenceId=record.id;element.tabIndex=-1;}
+  });
+  for(const panel of [checks,citations])panel.addEventListener('click',event=>{const link=event.target.closest('[data-evidence-ref]');if(link)revealEvidence($('#detail-content'),link.dataset.evidenceRef);});
   const dialog=$('#case-dialog'); if(!dialog.open)dialog.showModal();
   const rerender = async message => {await openCase(id);await loadCases();toast(message);};
   const version=()=>d.version;
   const assertSaved=()=>{if($('#draft-text').value!==d.draft)throw new Error('Save your draft edits before continuing. Saving clears any previous approval.');};
+  $('#analyze-evidence')?.addEventListener('click',event=>busy(event.currentTarget,async()=>{assertSaved();await api(`/disputes/${id}/analyze`,{method:'POST',body:{version:version()}});await rerender('Evidence checks saved. Review the excerpts and gaps; nothing was approved.');}));
   $('#draft-text').addEventListener('input',()=>{
     const dirty=$('#draft-text').value!==d.draft;
     $('#draft-save-status').textContent=dirty?'Unsaved edits. Save and review again before approval, export or submission.':'You are reviewing the saved response shown above.';

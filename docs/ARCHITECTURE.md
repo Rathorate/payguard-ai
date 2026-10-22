@@ -149,6 +149,12 @@ payguard/
   README.md
 ```
 
+## Evidence review additions
+
+DraftRevision retains generated/edit/approve/withdraw snapshots, with tenant, case, version, source, actor and timestamp. EvidenceAnalysis stores one validated AI report per case version. Additive migration: docs/migrations/002_review_history.sql. Demo startup creates missing tables; non-demo installations must migrate explicitly. Original responses from older builds have no reconstructed revisions.
+
+GET /api/v1/disputes/{id}/review returns saved-draft citation links, current-version analysis, the latest 20 revisions and the latest generated baseline. POST /api/v1/disputes/{id}/analyze requires an authenticated owner, CSRF and the exact saved version; it is limited to five uncached analyses/minute per workspace. Generated findings must cite existing evidence and exact source excerpts. Conflicts need two distinct source records. A conditional database write discards results for changed cases. Analysis cannot approve or submit. Unknown draft references block approval and submission; reference matching does not verify factual entailment.
+
 ## Path to millions of users
 
 Millions of registered users and millions of concurrent requests are different capacity targets. No scale claim is made without a workload and measurements.

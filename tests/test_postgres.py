@@ -33,3 +33,20 @@ def test_postgres_registration_preserves_long_audit_actor():
         with app.state.sessions() as db:
             recorded = db.scalar(select(Audit).where(Audit.tenant_id==response.json()['tenant_id'],Audit.action=='ACCOUNT_CREATED'))
             assert recorded.actor == email
+        # Exercise new revision tables with the same accepted long actor value.
+        import time
+        client.headers.update({'X-CSRF-Token':response.json()['csrf'],'Origin':'https://testserver'})
+        case=client.post('/api/v1/disputes',json={'paypal_id':'PG-'+uuid.uuid4().hex,'customer':'Synthetic buyer','reason':'INQUIRY','amount_cents':1000,'due_at':int(time.time())+3600}).json()
+        url='/api/v1/disputes/'+case['id']
+        evidence=client.post(url+'/evidence',json={'version':case['version'],'title':'Synthetic receipt','kind':'INVOICE','content':'Synthetic receipt records payment of ten dollars.'})
+        assert evidence.status_code==201
+        version=client.get(url).json()['version']
+        draft=client.post(url+'/draft',json={'version':version})
+        assert draft.status_code==200
+        approved=client.post(url+'/approve',json={'version':draft.json()['version'],'reviewed':True})
+        assert approved.status_code==200
+        history=client.get(url+'/review').json()['history']
+        assert [r['action'] for r in history]==['APPROVED','GENERATED']
+        assert all(r['actor']==email for r in history)
+        packet=client.get(url+'/export',params={'version':approved.json()['version']})
+        assert packet.status_code==200 and len(packet.json()['review']['history'])==2

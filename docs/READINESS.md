@@ -10,6 +10,8 @@ The real draft requested an unnecessary tax ID. It was edited out before the syn
 
 ## What the human does
 
+New evidence-review tooling is documented in EVIDENCE_REVIEW.md: version-bound AI findings with exact excerpts, paragraph-level citation inspection, server rejection of unknown references, retained generated/edit/approval history and a synthetic evaluation runner. These controls need a live Groq rehearsal after pulling and restarting; exact citations are not proof of factual entailment. Existing older responses have no retroactive revision history. UI redesign remains a later step after sandbox and hosted verification.
+
 1. Compare every claim with the actual evidence and check the provider deadline.
 2. Edit or replace the response when evidence is incomplete, inaccurate or irrelevant. A receipt alone does not establish delivery or authorization.
 3. Save the response, check the review acknowledgement, and approve its exact current version.
