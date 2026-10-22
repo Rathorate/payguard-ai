@@ -1,3 +1,13 @@
+# Latest case workflow verification — 22 October 2026
+
+The next-action/checklist release passed 199 Python tests (two local PostgreSQL skips, one non-failing TestClient deprecation warning), 10 Node frontend tests, JS syntax and frontend deployment validation. Coverage: 91%. An isolated browser fixture verified the next-action panel, read-only status refresh preserving case version, checklist source links and no new console warnings/errors. At 390 px and 1024 px breakpoints page/panel scroll widths matched client widths. The viewport was reset after testing. The provider response in this new browser check was a synthetic HTTP fixture, not a fresh PayPal credential test.
+
+Actual sandbox OAuth, dispute list/read and import, plus actual Groq Q&A and analysis were verified in earlier rehearsals below. Actual provider evidence acceptance, verified webhook delivery and hosted operation remain pending. The real imported user case was not approved, edited or submitted in this release test. A new additive provider_observations table requires migration 003 for existing non-demo databases; demo startup adds it without rewriting existing rows.
+
+The prior functional release has successful GitHub Actions run 39797472757. CI for this new release must be checked separately; local skipped PostgreSQL tests are not claimed as local passes.
+
+---
+
 # Evidence review structured output and diagnostics - 22 October 2026
 
 - User logs and an authenticated browser inspection verified actual app import of PP-R-SLL-10194090, live Groq draft generation and saved evidence analysis. The case remains unapproved. One analysis request failed and a later one succeeded; the historical HTTP status alone does not establish the provider/validation cause. Inspection found irrelevant authorization gaps for an item-not-received case and missing delivery-gap guidance; instructions were refined accordingly.
@@ -138,9 +148,9 @@ Using the actual locally served frontend and backend:
 
 ## Explicitly not verified
 
-- Real PayPal sandbox OAuth/scopes, signed event acceptance, live evidence payload acceptance or remote reconciliation. Provider contract behavior was tested with HTTP mocks, not credentials.
+- Signed event acceptance, evidence payload acceptance and remote reconciliation remain unverified. Actual sandbox OAuth/dispute reads/import were later verified; the earliest mock-only results below are historical.
 - OpenAI model output quality, factual grounding, latency or cost with a real model. Request/response and failure behavior were tested with mocks. Human review remains mandatory.
-- PostgreSQL execution on this machine, Docker image/Compose startup, CI execution, deployment, failover, load or million-user capacity. No local PostgreSQL/Docker runtime was available. CI configuration includes a PostgreSQL smoke test, but a written CI workflow is not a completed CI run.
+- PostgreSQL execution on this machine, Docker image/Compose startup, hosted deployment, failover, load or million-user capacity. Earlier GitHub CI runs succeeded with disposable PostgreSQL; each new release needs its own CI result.
 - Independent carrier tracking, OCR for scans/images, binary provider attachments, original-PDF retention, multi-merchant OAuth onboarding. These features are outside this MVP and are identified as such in the UI/docs.
 - Comprehensive accessibility audit, every browser/device, adversarial PDF parsing or a third-party security review.
 
@@ -149,4 +159,3 @@ Using the actual locally served frontend and backend:
 The first dependency resolver stalled during package metadata fetching; installation succeeded through standard PyPI using pip's legacy resolver. No TLS verification was disabled. An early test run could not access the default Windows pytest temp directory; pytest now uses a workspace-local base directory. Neither issue is represented as an application test failure in the final test report.
 
 The pinned Starlette TestClient emits a deprecation warning for its httpx integration. Tests pass; migration to its recommended test client can be done separately. No production code depends on TestClient.
-

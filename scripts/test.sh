@@ -6,4 +6,5 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
 node --check frontend/public/static/app.js
 node --check frontend/public/static/review-ui.js
 node --check frontend/public/static/questions-ui.js
+node --check frontend/public/static/workflow-ui.js
 node --test frontend/tests/*.test.mjs

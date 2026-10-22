@@ -4,7 +4,7 @@ The application has its own database. Access to PayPal data is through an author
 
 ## 1. Save credentials privately
 
-Open https://developer.paypal.com/dashboard/applications/sandbox and use the existing Default Application. Copy its Client ID and Secret using the page controls. In Ubuntu:
+Open https://developer.paypal.com/dashboard/applications/sandbox and select the app linked to the sandbox business seller that owns the dispute. Do not assume the Default Application is linked to that seller. For the verified PayGuard rehearsal, the matching app is PayGuard AI Sandbox. Copy its Client ID and Secret using the page controls. In Ubuntu:
 
 ```bash
 cd ~/projects/payguard-ai
@@ -54,7 +54,15 @@ bash scripts/verify-paypal.sh --dispute-id YOUR-REAL-SANDBOX-DISPUTE-ID
 
 This validates a remote response without importing it. Integrations > Import sandbox dispute creates a local case and minimal source snapshot. Duplicate IDs are rejected without overwriting evidence or approval. Missing deadlines remain unknown and block submission. Only supported currencies are accepted. A snapshot proves dispute metadata, not delivery or authorization.
 
-## 5. Rehearse AI and human review
+## 5. Inspect the next action and preparation checklist
+
+Open the case and use **Refresh PayPal status**. This performs an authenticated read, stores only allowlisted provider metadata/action names and leaves evidence, draft, approval and case version unchanged. Older imports have no observation until refreshed. The view shows stage, provider status, provider deadline, last check and supported action links returned by PayPal. Observations older than five minutes are marked stale; refreshing is manual, not real-time synchronization.
+
+An attached record type is not verified proof. The checklist suggests records appropriate to the dispute reason and links to attached sources. AI findings apply only to the current saved case version. No score, eligibility or outcome is calculated.
+
+Changing provider facts are highlighted without silently rewriting approved evidence. If facts differ, reconcile the case in PayPal and withdraw approval before preparing another response. This MVP has no automatic rebase/reconciliation editor. A real send performs a fresh provider read and requires the trusted provide-evidence action, seller-response status, matching amount/currency/reason/deadline and an unexpired deadline. Demo mode remains simulated. Other returned actions are informational; this UI does not execute offers, refunds, messages or escalation.
+
+## 6. Rehearse AI and human review
 
 Open the imported case, add relevant synthetic sandbox evidence, and generate a Groq draft. Check every claim, edit and save. Unchecked review and unsaved changes must block approval. Approve the saved version, withdraw and reapprove it, and export the approved packet. Separately acknowledge simulated submission. DEMO_MODE=true never sends evidence, even with PayPal credentials configured. Inspect the audit log.
 

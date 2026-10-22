@@ -8,3 +8,15 @@
 
 /* Keep accessible table labels and source IDs inside narrow layouts. */
 .table-wrap{position:relative;max-width:100%}.case-dialog{width:min(650px,100%);max-width:100%;overflow-x:hidden}.detail-body{min-width:0;overflow-wrap:anywhere}.detail-meta{grid-template-columns:repeat(3,minmax(0,1fr))}@media(max-width:360px){.drawer-header{padding:16px}.drawer-header h2{font-size:18px}.detail-body{padding:16px}.detail-meta{grid-template-columns:1fr}.section-box{padding:16px}}
+
+/* Source-linked preparation guidance; no implied readiness score. */
+.workflow-panel{border-top:3px solid var(--forest,#184f43)}
+.workflow-next{font-size:1.1rem;line-height:1.6;font-weight:600;overflow-wrap:anywhere}
+.workflow-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:20px 0}
+.workflow-facts dt{font-size:.8rem;color:#657a73;margin-bottom:6px}
+.workflow-facts dd{margin:0;overflow-wrap:anywhere;font-size:.9rem}
+.readiness-list{list-style:none;margin:0;padding:0}
+.readiness-list li{padding:16px 0;border-top:1px solid #e1e8e2;overflow-wrap:anywhere}
+.readiness-list li>div{display:flex;justify-content:space-between;gap:12px;align-items:start;flex-wrap:wrap}
+.readiness-list p{margin:8px 0}
+@media(max-width:480px){.workflow-facts{grid-template-columns:1fr}.workflow-panel .section-top{align-items:stretch;flex-direction:column}}

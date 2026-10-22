@@ -54,6 +54,15 @@ class Dispute(Base):
     provider_updated: Mapped[str] = mapped_column(String(64), default='')
 
 
+class ProviderObservation(Base):
+    """Read-only provider metadata, separate from merchant evidence and approval."""
+    __tablename__ = 'provider_observations'
+    dispute_id: Mapped[str] = mapped_column(ForeignKey('disputes.id'), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey('tenants.id'), index=True)
+    observed_at: Mapped[int] = mapped_column(Integer)
+    report: Mapped[str] = mapped_column(Text)
+
+
 class Evidence(Base):
     __tablename__ = 'evidence'
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)

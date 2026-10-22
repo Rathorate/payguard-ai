@@ -106,6 +106,11 @@ def test_unknown_submission_does_not_retry(merchant,app):
     calls=[]
     def fail(*args):
         calls.append(1);raise ProviderError('timeout')
+    app.state.paypal.details=lambda _: {'dispute_id':approved['paypal_id'],'reason':approved['reason'],
+        'dispute_amount':{'value':str(approved['amount_cents']/100),'currency_code':approved['currency']},
+        'seller_response_due_date':__import__('datetime').datetime.fromtimestamp(approved['due_at'],__import__('datetime').timezone.utc).isoformat(),
+        'status':'WAITING_FOR_SELLER_RESPONSE','links':[{'rel':'provide-evidence','method':'POST',
+        'href':app.state.paypal.base+'/v1/customer/disputes/'+approved['paypal_id']+'/provide-evidence'}]}
     app.state.paypal.submit=fail
     body={'version':approved['version'],'confirmed':True};headers={'Idempotency-Key':'ambiguous-submission'}
     assert merchant.post(url+'/submit',json=body,headers=headers).json()['state']=='UNKNOWN'

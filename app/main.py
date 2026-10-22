@@ -15,13 +15,14 @@ from sqlalchemy.exc import IntegrityError
 from pypdf import PdfReader
 
 from .config import Settings
-from .models import Base, Tenant, User, LoginSession, Dispute, Evidence, Audit, Webhook, Submission, RateBucket, DraftRevision, EvidenceAnalysis, database
+from .models import Base, Tenant, User, LoginSession, Dispute, Evidence, Audit, Webhook, Submission, RateBucket, DraftRevision, EvidenceAnalysis, ProviderObservation, database
 from .security import digest, hash_password, verify_password
 from .providers import PayPal, ProviderError, ProviderHTTPError, generate_draft
 from .schemas import Credentials, Registration, NewDispute, NewEvidence, Version, DraftEdit, Approval, SubmissionInput, PayPalImport, CaseQuestion, AnalysisRequest
 from .paypal_import import snapshot as paypal_snapshot
 from .review import analyze_evidence, citation_report, validate_analysis
 from .questions import answer_question, validate_answer
+from .workflow import observe, preparation
 from .service import audit, get_dispute, evidence_for, transition, editable, add_evidence, serialize, demo_seed
 
 log = logging.getLogger('payguard')
@@ -289,6 +290,47 @@ def create_app(settings=None):
                 'analysis': {**serialize(analysis), 'report': json.loads(analysis.report)} if analysis else None,
                 'history': [serialize(r) for r in history], 'latest_generated': serialize(baseline) if baseline else None}
 
+    @app.get('/api/v1/disputes/{identity}/workflow')
+    def workflow_details(identity: str, who=Depends(principal), db=Depends(db_session)):
+        tenant = who[0].tenant_id
+        item = get_dispute(db, tenant, identity)
+        saved = db.scalar(select(ProviderObservation).where(ProviderObservation.tenant_id==tenant, ProviderObservation.dispute_id==identity))
+        observation = {**json.loads(saved.report), 'observed_at': saved.observed_at} if saved else None
+        analysis = db.scalar(select(EvidenceAnalysis).where(EvidenceAnalysis.tenant_id==tenant, EvidenceAnalysis.dispute_id==identity, EvidenceAnalysis.case_version==item.version))
+        connected = bool(settings.paypal_environment=='sandbox' and settings.paypal_client_id and settings.paypal_secret and tenant==settings.paypal_tenant_id)
+        return {'case_version': item.version, **preparation(item, evidence_for(db,tenant,identity), observation,
+                json.loads(analysis.report) if analysis else None, settings.demo, connected)}
+
+    @app.post('/api/v1/disputes/{identity}/workflow/refresh')
+    def refresh_workflow(identity: str, body: Version, who=Depends(principal), db=Depends(db_session)):
+        tenant = who[0].tenant_id
+        item = get_dispute(db, tenant, identity)
+        sandbox_merchant(who)
+        if item.version != body.version:
+            raise HTTPException(409, 'Case changed. Refresh before checking PayPal.')
+        if item.paypal_id.startswith('PP-D-DEMO-'):
+            raise HTTPException(409, 'Synthetic demo cases have no PayPal status to refresh')
+        rate_limit(db, 'paypal-workflow:' + tenant, 5, 60)
+        try:
+            report = observe(app.state.paypal.details(item.paypal_id), item.paypal_id, settings.paypal_environment)
+        except ProviderError as exc:
+            raise HTTPException(502, str(exc))
+        current = db.scalar(select(Dispute.version).where(Dispute.id==identity, Dispute.tenant_id==tenant))
+        if current != body.version:
+            raise HTTPException(409, 'Case changed during the provider read. Refresh the case.')
+        saved = db.scalar(select(ProviderObservation).where(ProviderObservation.tenant_id==tenant, ProviderObservation.dispute_id==identity))
+        if saved:
+            saved.report, saved.observed_at = json.dumps(report), int(time.time())
+        else:
+            db.add(ProviderObservation(tenant_id=tenant,dispute_id=identity,report=json.dumps(report),observed_at=int(time.time())))
+        audit(db, tenant, who[0].email, 'PAYPAL_STATUS_READ', identity)
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(409, 'Another status check completed. Refresh the case.')
+        return workflow_details(identity, who, db)
+
     @app.post('/api/v1/disputes/{identity}/analyze')
     def analyze(identity: str, body: AnalysisRequest, who=Depends(principal), db=Depends(db_session)):
         item = get_dispute(db, who[0].tenant_id, identity)
@@ -442,6 +484,15 @@ def create_app(settings=None):
         records = evidence_for(db, tenant, identity)
         if citation_report(item.draft, records)['unknown_ids']:
             raise HTTPException(422, 'Correct unknown evidence references and approve the response again before submission')
+        if not settings.demo:
+            try:
+                report = observe(app.state.paypal.details(item.paypal_id), item.paypal_id, settings.paypal_environment)
+            except ProviderError as exc:
+                raise HTTPException(502, 'PayPal preflight failed; nothing was submitted. ' + str(exc))
+            if (report['provider_status'] != 'WAITING_FOR_SELLER_RESPONSE' or 'provide-evidence' not in report['actions']):
+                raise HTTPException(409, 'PayPal does not currently offer evidence submission for this merchant/case. Nothing was sent.')
+            if any(report[k] != getattr(item,k) for k in ('due_at','reason','amount_cents','currency')) or report['due_at'] <= int(time.time()):
+                raise HTTPException(409, 'PayPal facts or deadline changed. Reconcile the case and review again; nothing was sent.')
         transition(db, item, body.version, status='SUBMITTING')
         submission = Submission(tenant_id=tenant, dispute_id=identity, request_key=idempotency_key, draft_version=body.version)
         db.add(submission)
@@ -535,7 +586,9 @@ def create_app(settings=None):
             raise HTTPException(409, 'This case already exists. Import does not overwrite existing evidence or approvals.')
         rate_limit(db, 'paypal-import:' + tenant, 10, 60)
         try:
-            fields, content = paypal_snapshot(app.state.paypal.details(body.paypal_id), body.paypal_id)
+            resource = app.state.paypal.details(body.paypal_id)
+            fields, content = paypal_snapshot(resource, body.paypal_id)
+            observation = observe(resource, body.paypal_id, settings.paypal_environment)
         except ProviderError as exc:
             status=404 if isinstance(exc,ProviderHTTPError) and exc.diagnostic.get('status')==404 else 502
             raise HTTPException(status, str(exc))
@@ -544,6 +597,7 @@ def create_app(settings=None):
         try:
             db.flush()
             db.add(Evidence(tenant_id=tenant,dispute_id=item.id,title='PayPal sandbox dispute snapshot',kind='OTHER',content=content,sha256=digest(content)))
+            db.add(ProviderObservation(tenant_id=tenant,dispute_id=item.id,report=json.dumps(observation),observed_at=int(time.time())))
             audit(db,tenant,who[0].email,'PAYPAL_SANDBOX_DISPUTE_IMPORTED',item.id)
             db.commit()
         except IntegrityError:

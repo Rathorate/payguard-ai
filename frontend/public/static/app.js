@@ -1,3 +1,4 @@
+import {renderWorkflow} from './workflow-ui.js';
 import {renderReview, revealEvidence} from './review-ui.js';
 import {questionPanel,renderConversation} from './questions-ui.js';
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -191,9 +192,9 @@ $('#case-rows').addEventListener('click', event => {const button=event.target.cl
 
 async function openCase(id) {
   const requestId=++caseRequest;
-  const [d, review] = await Promise.all([api(`/disputes/${id}`),api(`/disputes/${id}/review`)]);
+  const [d, review, workflow] = await Promise.all([api(`/disputes/${id}`),api(`/disputes/${id}/review`),api(`/disputes/${id}/workflow`)]);
   if(requestId!==caseRequest)return;
-  if(d.version!==review.case_version)throw new Error('The case changed while loading. Open it again to review the latest version.');
+  if(d.version!==review.case_version||d.version!==workflow.case_version)throw new Error('The case changed while loading. Open it again to review the latest version.');
   state.detail=d;
   $('#detail-title').textContent = d.paypal_id;
   const locked = ['SUBMITTED','RESOLVED','SUBMITTING','SUBMISSION_UNKNOWN'].includes(d.status);
@@ -206,6 +207,9 @@ async function openCase(id) {
   const sections=$$('.section-box', $('.detail-body'));
   const [checks,citations,history]=[...reviewPanel.children];
   sections[0].after(checks);sections[1].after(citations);sections[2].after(history);
+  const workflowContainer=document.createElement('div');workflowContainer.innerHTML=renderWorkflow(workflow,d.evidence);
+  const workflowPanel=workflowContainer.firstElementChild;sections[0].before(workflowPanel);
+  workflowPanel.addEventListener('click',event=>{const link=event.target.closest('[data-evidence-ref]');if(link)revealEvidence($('#detail-content'),link.dataset.evidenceRef);});
   const questionContainer=document.createElement('div');questionContainer.innerHTML=questionPanel();
   const questions=questionContainer.firstElementChild;checks.after(questions);
   const conversationKey=`${id}:${d.version}`;
@@ -229,6 +233,7 @@ async function openCase(id) {
   const rerender = async message => {await openCase(id);await loadCases();toast(message);};
   const version=()=>d.version;
   const assertSaved=()=>{if($('#draft-text').value!==d.draft)throw new Error('Save your draft edits before continuing. Saving clears any previous approval.');};
+  $('#refresh-paypal-status')?.addEventListener('click',event=>busy(event.currentTarget,async()=>{assertSaved();await api(`/disputes/${id}/workflow/refresh`,{method:'POST',body:{version:version()}});await rerender('PayPal status refreshed. No evidence, draft or approval was changed; nothing was submitted.');}));
   $('#question-form').addEventListener('submit',event=>{
     event.preventDefault();busy($('button[type="submit"]',event.target),async()=>{
       try{

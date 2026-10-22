@@ -4,6 +4,8 @@ Licensed under [MIT](LICENSE), copyright 2026 Rathorate.
 
 [Evidence review and human decisions](docs/EVIDENCE_REVIEW.md): AI gap/conflict checks with exact source excerpts, inspectable draft citations, retained generation/edit/approval history, and a four-scenario synthetic AI evaluation script. These assist human judgment; they do not establish delivery or predict outcomes.
 
+New: a next-action panel shows recorded PayPal stage, deadline and available actions, plus a source-linked evidence checklist. Read-only refresh preserves merchant evidence and approval; real sends recheck provider permissions and case facts. See [workflow details](docs/CASE_WORKFLOW.md).
+
 See [PayPal sandbox setup](docs/PAYPAL_SANDBOX.md) for credentials, workspace mapping, real sandbox reads and safe simulated submission.
 
 For the local hackathon workflow, Groq setup, review/approval checks and PayPal-free demonstration, see [HACKATHON.md](docs/HACKATHON.md). The frontend and backend remain independently deployable; this rehearsal stays local.
