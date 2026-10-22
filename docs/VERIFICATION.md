@@ -1,3 +1,11 @@
+# Actual source-reference repair verified — 22 October 2026
+
+After the user pulled and restarted 89307d3, actual Groq analysis for case version 4 completed successfully. It recorded the dispute metadata, explicitly identified fictional tracking as synthetic test data and flagged absent real shipment/delivery proof. The browser displayed exact original excerpts for both records. Draft and case version remained unchanged and unapproved. GitHub Actions 39804838711 completed successfully, including the PostgreSQL step. Offline results: 211 Python tests passed, 2 local PostgreSQL skips, one non-failing TestClient warning, 10 frontend tests passed, 91% coverage, pip check clean. This successful provider rehearsal does not establish a failure rate or guarantee future provider availability.
+
+The user chose free services where possible, accepting cold starts/quotas. FREE_HOSTING_PLAN.md prepares an isolated Neon Free database plus Vercel frontend and Render Free API; there is no deployed PayGuard service yet. Existing CropGrid resources were only inspected and were not changed.
+
+---
+
 # Synthetic tracking rehearsal and analysis protocol repair — 22 October 2026
 
 The user attached a clearly labelled synthetic tracking record to the imported sandbox dispute. The browser verified that the previous response was cleared at case version 3. Actual Groq analysis correctly flagged absent shipment/delivery proof. Actual Groq drafting saved version 4 and explicitly called the tracking fictional, with both known evidence IDs. Actual Groq Q&A correctly said no shipment, carrier scan or delivery was established. Unchecked review acknowledgement blocked approval; the case remained REVIEW. No approval, escalation or submission was performed.
