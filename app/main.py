@@ -7,6 +7,7 @@ import time
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 from fastapi import FastAPI, Depends, HTTPException, Request, Response, UploadFile, File, Form, Query, Header
 from sqlalchemy import select, update, delete, func, or_
@@ -134,7 +135,7 @@ def create_app(settings=None):
         db.add(LoginSession(token_hash=digest(token), user_id=user.id, csrf=csrf, expires=int(time.time()) + 28800))
         db.commit()
         response.set_cookie('pg_session', token, httponly=True, secure=settings.secure_cookies, samesite='strict', max_age=28800, path='/')
-        return {'email': user.email, 'tenant_id': user.tenant_id, 'csrf': csrf, 'demo': settings.demo}
+        return {'email': user.email, 'tenant_id': user.tenant_id, 'csrf': csrf, 'demo': settings.demo, 'sample_workspace': user.email.endswith('@demo.invalid')}
 
     @app.get('/health/live')
     def live():
@@ -197,7 +198,22 @@ def create_app(settings=None):
     @app.get('/api/v1/auth/me')
     def me(who=Depends(principal)):
         user, session = who
-        return {'email': user.email, 'tenant_id': user.tenant_id, 'csrf': session.csrf, 'demo': settings.demo}
+        return {'email': user.email, 'tenant_id': user.tenant_id, 'csrf': session.csrf, 'demo': settings.demo, 'sample_workspace': user.email.endswith('@demo.invalid')}
+
+    @app.post('/api/v1/demo/seed')
+    def seed_empty_workspace(who=Depends(principal), db=Depends(db_session)):
+        if not settings.demo:
+            raise HTTPException(404, 'Not found')
+        tenant = who[0].tenant_id
+        db.scalar(select(Tenant).where(Tenant.id == tenant).with_for_update())
+        if db.scalar(select(func.count()).select_from(Dispute).where(Dispute.tenant_id == tenant)):
+            raise HTTPException(409, 'This workspace already has cases. Existing records were preserved.')
+        try:
+            demo_seed(db, tenant)
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(409, 'Sample cases were already loaded. Refresh the inbox.')
+        return {'status': 'seeded', 'count': 4}
 
     @app.post('/api/v1/auth/logout', status_code=204)
     def logout(response: Response, who=Depends(principal), db=Depends(db_session)):
@@ -384,9 +400,23 @@ def create_app(settings=None):
 
     @app.get('/api/v1/integrations')
     def integrations(who=Depends(principal)):
-        provider = settings.drafting_provider
-        ai_configured = bool(settings.groq_key and settings.groq_model) if provider == 'groq' else bool(settings.openai_key and settings.openai_model) if provider == 'openai' else False
-        return {'mode': 'demo' if settings.demo else 'live', 'paypal_environment': settings.paypal_environment, 'paypal_configured': bool(settings.paypal_client_id and settings.paypal_secret and who[0].tenant_id == settings.paypal_tenant_id), 'webhook_configured': bool(settings.paypal_webhook_id), 'ai_provider': provider, 'ai_configured': ai_configured, 'carrier_verification': False, 'ocr': False}
+        return {'mode': 'demo' if settings.demo else 'live', 'paypal_environment': settings.paypal_environment, 'paypal_configured': bool(settings.paypal_client_id and settings.paypal_secret and who[0].tenant_id == settings.paypal_tenant_id), 'webhook_configured': bool(settings.paypal_webhook_id), **settings.ai_status(), 'carrier_verification': False, 'ocr': False}
+
+    @app.post('/api/v1/integrations/ai/check')
+    def check_ai(who=Depends(principal), db=Depends(db_session)):
+        status = settings.ai_status()
+        if not status['ai_configured']:
+            raise HTTPException(409, status['ai_message'])
+        rate_limit(db, 'ai-check:' + who[0].tenant_id, 3, 60)
+        sample = SimpleNamespace(paypal_id='PP-D-CONNECTION-TEST', reason='INQUIRY', amount_cents=1000, currency='USD')
+        evidence = [SimpleNamespace(id='SAMPLE-RECEIPT', title='Synthetic receipt', content='SYNTHETIC CONNECTION TEST. Merchant records payment of 10.00 USD. Delivery and authorization are unverified.')]
+        try:
+            text, source = app.state.drafter(settings, sample, evidence)
+        except ProviderError as exc:
+            raise HTTPException(502, str(exc))
+        audit(db, who[0].tenant_id, who[0].email, 'AI_CONNECTION_VERIFIED_' + source, 'synthetic-connection-test')
+        db.commit()
+        return {'status': 'ok', 'provider': source, 'model': status['ai_model'], 'sample_draft': text, 'notice': 'Synthetic text only. No case was changed, approved or submitted.'}
 
     @app.post('/api/v1/webhooks/paypal', status_code=202)
     def webhook(body: dict, request: Request, db=Depends(db_session)):

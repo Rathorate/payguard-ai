@@ -1,3 +1,17 @@
+# AI visibility and local retest - 22 October 2026
+
+- Latest full Python suite: **67 passed, 1 skipped**, 91% line coverage. The skip needs disposable PostgreSQL. One non-failing Starlette/httpx deprecation warning remains.
+- Four Node tests, JavaScript syntax, frontend build/config checks, Bash syntax for both launchers, dependency compatibility and whitespace checks passed.
+- Port 3001 was reachable with HTTP 200 during diagnosis. Its actual Integrations screen reported **Selected provider: template**, so no live Groq verification is claimed for that process. WSL command execution and the Ubuntu .env were inaccessible; no key was read or displayed.
+- An actual new interactive-demo login loaded four sample cases. The empty state is reproducible for regular registered accounts. Their global demo-mode label previously also called them Interactive demo; this misleading label is fixed.
+- The inbox now has an AI assistant panel, running provider/model status, a synthetic connection test with explicit errors, and an empty-workspace-only fixture loader. A key present while AI_PROVIDER=template is explicitly diagnosed.
+- Groq HTTP 401/403/404/429 failures now provide specific, sanitized next steps. Tests verify errors do not leak upstream messages or secrets, alter disputes, approve drafts or submit responses. AI connection checks are authenticated, CSRF-protected and rate limited.
+- Browser retest: registered an empty fixture account, saw the AI panel and sample loader, verified the missing-configuration error, loaded four cases, generated a template, blocked unchecked approval, blocked approval while unsaved, saved/approved/withdrew/reapproved, blocked unchecked submission, then simulated submission successfully. The response was locked afterward.
+- The actual launcher preflight was executed against free and occupied ports. It reports occupied ports before starting services and never prints API keys. Explicit FRONTEND_PORT/BACKEND_PORT arguments take precedence over .env port settings.
+- No cloud deployment or real PayPal submission occurred. Real Groq validation still requires the running backend to load the user's saved key and select Groq. scripts/verify-ai.sh offers a safe synthetic live check in Ubuntu.
+
+Earlier records below describe previous builds.
+
 # Human review and Groq verification - 22 October 2026
 
 - Complete local Python suite: **57 passed, 1 skipped**, 91% line coverage. PostgreSQL requires a disposable database and was skipped; no local Docker/PostgreSQL executable was available.

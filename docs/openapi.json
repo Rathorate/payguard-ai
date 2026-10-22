@@ -157,6 +157,22 @@
         }
       }
     },
+    "/api/v1/demo/seed": {
+      "post": {
+        "summary": "Seed Empty Workspace",
+        "operationId": "seed_empty_workspace_api_v1_demo_seed_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/auth/logout": {
       "post": {
         "summary": "Logout",
@@ -774,6 +790,22 @@
       "get": {
         "summary": "Integrations",
         "operationId": "integrations_api_v1_integrations_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/integrations/ai/check": {
+      "post": {
+        "summary": "Check Ai",
+        "operationId": "check_ai_api_v1_integrations_ai_check_post",
         "responses": {
           "200": {
             "description": "Successful Response",

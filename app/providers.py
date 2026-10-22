@@ -76,6 +76,10 @@ def generate_draft(settings, dispute, evidence, transport=None):
                 if choice.get('finish_reason') != 'stop' or not isinstance(text, str) or not 20 <= len(text.strip()) <= 12000:
                     raise ProviderError('Groq returned an incomplete, empty or oversized draft; no draft was changed')
                 return text.strip(), 'GROQ'
+        except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code
+            advice = {401: 'Check GROQ_API_KEY and restart the backend.', 403: 'Check Groq account and model permissions.', 404: 'Check GROQ_MODEL against the models enabled for your account.', 429: 'Groq rate limit or quota reached; wait before retrying.'}.get(status, 'Check Groq availability and your selected model.')
+            raise ProviderError(f'Groq request failed ({status}); no draft was changed. {advice}') from exc
         except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as exc:
             raise ProviderError('Groq unavailable or returned an invalid response; no draft was changed. Check the key, model and rate limit, or choose template mode.') from exc
     if not settings.openai_key:

@@ -27,6 +27,19 @@ class Settings:
             return self.ai_provider
         return 'groq' if self.groq_key else 'openai' if self.openai_key else 'template'
 
+    def ai_status(self):
+        provider = self.drafting_provider
+        key = self.groq_key if provider == 'groq' else self.openai_key if provider == 'openai' else ''
+        model = self.groq_model if provider == 'groq' else self.openai_model if provider == 'openai' else ''
+        configured = bool(key and model)
+        if provider == 'template':
+            message = ('Groq key detected, but AI_PROVIDER=template disables AI. Set AI_PROVIDER=groq and restart the backend.' if self.groq_key else 'Offline template mode. Set AI_PROVIDER=groq and GROQ_API_KEY in the backend .env, then restart both servers.')
+        elif not configured:
+            message = f'{provider.upper()} is selected, but its backend API key or model is missing. Update .env and restart both servers.'
+        else:
+            message = f'{provider.upper()} is configured. Test the connection, then open a case to generate an AI response. Human approval is always required.'
+        return {'ai_provider': provider, 'ai_model': model, 'ai_configured': configured, 'groq_key_present': bool(self.groq_key), 'ai_message': message}
+
     def __post_init__(self):
         # Managed providers commonly supply driver-neutral PostgreSQL URLs.
         for prefix in ('postgres://', 'postgresql://'):

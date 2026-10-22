@@ -1,6 +1,6 @@
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
-const state = {csrf: '', user: null, demo: false, status: '', page: 1, q: '', detail: null, view: 'disputes', loadId: 0};
+const state = {csrf: '', user: null, demo: false, status: '', page: 1, q: '', detail: null, view: 'disputes', loadId: 0, ai: null};
 const labels = {OPEN: 'Needs evidence', REVIEW: 'In review', APPROVED: 'Ready to send', SUBMITTED: 'Submitted', RESOLVED: 'Resolved', SUBMITTING: 'Sending', SUBMISSION_UNKNOWN: 'Needs reconciliation'};
 const reasons = {MERCHANDISE_OR_SERVICE_NOT_RECEIVED: 'Item not received', MERCHANDISE_OR_SERVICE_NOT_AS_DESCRIBED: 'Not as described', UNAUTHORIZED_TRANSACTION: 'Unauthorized transaction', UNAUTHORISED: 'Unauthorized transaction', NOT_RECOGNISED: 'Not recognized', NOT_RECOGNIZED: 'Not recognized', INQUIRY: 'Customer inquiry'};
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -38,8 +38,10 @@ async function busy(button, task) {
 
 async function enter(user) {
   state.user = user; state.csrf = user.csrf; state.demo = user.demo;
+  state.q='';state.status='';state.page=1;state.view='disputes';state.detail=null;state.ai=null;
+  $('#search').value='';$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.status===''));
   $('#login-view').hidden = true; $('#workspace').hidden = false;
-  $('#profile-label').textContent = user.demo ? 'Interactive demo' : user.email;
+  $('#profile-label').textContent = user.sample_workspace ? 'Sample workspace' : user.email;
   $('#mode-badge').textContent = user.demo ? 'Demo · simulated submissions' : 'Merchant workspace';
   await loadView();
 }
@@ -83,7 +85,7 @@ async function loadView() {
     const data = await api('/integrations');
     const cards = [
       ['PayPal',data.paypal_configured,`Dispute ingestion and merchant evidence submission. Environment: ${data.paypal_environment}. ${state.demo ? 'Submission is simulated in demo mode.' : ''}`],
-      ['AI drafting',data.ai_configured,`Selected provider: ${data.ai_provider}. Groq and OpenAI are supported. Template mode works without an API key. Every response needs your review.`],
+      ['AI drafting',data.ai_configured,`Selected provider: ${data.ai_provider}. ${data.ai_message || ''} ${data.ai_model ? 'Model: '+data.ai_model : ''}`],
       ['Carrier verification',false,'Tracking statements can be recorded manually. No independent carrier verification is connected.'],
       ['Document extraction',true,'Text PDFs are supported. Scanned documents and images require a separate OCR service.']
     ];
@@ -93,10 +95,14 @@ async function loadView() {
 
 async function loadCases() {
   const loadId = ++state.loadId;
-  const [data, overview] = await Promise.all([api('/disputes?' + new URLSearchParams({q:state.q,status:state.status,page:state.page,limit:10})),api('/overview')]);
+  const [data, overview, integration] = await Promise.all([api('/disputes?' + new URLSearchParams({q:state.q,status:state.status,page:state.page,limit:10})),api('/overview'),api('/integrations')]);
   if (loadId !== state.loadId) return;
+  state.ai=integration;
+  $('#ai-provider-label').textContent=integration.ai_configured ? `${integration.ai_provider.toUpperCase()} · ${integration.ai_model}` : 'AI is not enabled · offline templates available';
+  $('#ai-status').textContent=integration.ai_message || 'Restart your backend after changing its AI environment settings.';
   const groups = overview.groups;
   const count = groups.reduce((sum,g)=>sum+g.count,0);
+  $('#seed-cases').hidden=!state.demo || count>0;
   const openGroups = groups.filter(g=>!['SUBMITTED','RESOLVED'].includes(g.status));
   const atRisk = Object.entries(openGroups.reduce((totals,g)=>({...totals,[g.currency]:(totals[g.currency]||0)+g.amount_cents}),{})).map(([c,a])=>money(a,c));
   const stats = [
@@ -117,6 +123,13 @@ async function loadCases() {
   $('#prev-page').disabled = state.page <= 1; $('#next-page').disabled = state.page*10 >= data.total;
 }
 
+$('#seed-cases').addEventListener('click',event=>busy(event.currentTarget,async()=>{await api('/demo/seed',{method:'POST'});state.q='';state.status='';state.page=1;$('#search').value='';$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.status===''));await loadCases();toast('Four synthetic cases loaded. Open a case to try AI drafting and human review.');}));
+$('#check-ai').addEventListener('click',event=>busy(event.currentTarget,async()=>{
+  $('#ai-feedback').textContent='Testing with synthetic text. This can take up to 45 seconds…';
+  try {const result=await api('/integrations/ai/check',{method:'POST'});$('#ai-feedback').textContent=`${result.provider} connection verified (${result.model}). ${result.notice}\n\n${result.sample_draft}`;}
+  catch(error){$('#ai-feedback').textContent=error.message;throw error;}
+}));
+
 $$('.nav').forEach(button => button.addEventListener('click', () => {state.view = button.dataset.view; loadView().catch(e=>toast(e.message));}));
 $('#refresh').addEventListener('click', event => busy(event.currentTarget, loadView));
 $$('.tab').forEach(button => button.addEventListener('click', () => {state.status = button.dataset.status; state.page=1; $$('.tab').forEach(x=>x.classList.toggle('active',x===button)); loadCases().catch(e=>toast(e.message));}));
@@ -133,7 +146,7 @@ async function openCase(id) {
   $('#detail-content').innerHTML = `<div class="detail-body"><p id="case-feedback" class="notice" role="status" hidden></p>${badge(d.status)}<div class="detail-meta"><div><span>Customer</span><b>${escape(d.customer)}</b></div><div><span>Disputed amount</span><b>${escape(money(d.amount_cents,d.currency))}</b></div><div><span>Response deadline</span><b>${escape(date(d.due_at))}</b></div></div><p class="small muted">${escape(reasons[d.reason]||d.reason)}</p>
     <section class="section-box"><div class="section-top"><h3><span class="step">1</span> Evidence collection</h3><span class="count">${d.evidence.length} items</span></div><p class="muted">Recorded merchant statements. Delivery and eligibility have not been independently verified.</p>${d.evidence.map(e=>`<details class="evidence-item"><summary>${escape(e.title)} <span class="badge">${escape(e.kind)}</span></summary><p>${escape(e.content)}</p><small>Evidence ID: ${escape(e.id)}</small></details>`).join('') || '<p class="muted">No evidence yet. Add your first record below.</p>'}
     ${!locked?`<details class="evidence-item"><summary>+ Add a record</summary><form id="evidence-form"><label>Title<input name="title" required minlength="2" maxlength="160" placeholder="Order invoice or delivery statement"></label><label>Type<select name="kind"><option>INVOICE</option><option>TRACKING</option><option>COMMUNICATION</option><option>OTHER</option></select></label><label>Facts / source text<textarea name="content" required minlength="5" maxlength="8000" placeholder="Paste the relevant facts and source details. Do not include unnecessary personal information."></textarea></label><button class="secondary">Save evidence</button></form></details><form id="upload-form"><label class="upload-label">Or extract text from a PDF<input name="file" type="file" accept="application/pdf" required><small>Up to 5 MB / 20 pages. Image-only documents need OCR.</small></label><button class="secondary compact">Extract & add</button></form>`:''}</section>
-    <section class="section-box"><div class="section-top"><h3><span class="step">2</span> Response draft</h3>${!locked?'<button class="secondary compact" id="generate-draft">✦ Generate draft</button>':''}</div><p class="muted">${['OPENAI','GROQ'].includes(d.draft_source)?`${escape(d.draft_source)} draft. Verify every assertion and evidence reference.`:d.draft_source==='MERCHANT'?'Edited by merchant. Review before approval.':'Template drafting works without an API key. AI drafting is optional.'}</p><label for="draft-text" class="sr-only">Defense draft</label><textarea id="draft-text" rows="10" maxlength="12000" placeholder="Add evidence, then generate or write your response." ${locked?'readonly':''}>${escape(d.draft)}</textarea><p class="small muted" id="draft-save-status" role="status">${locked?'Response locked after submission.':'You are reviewing the saved response shown above.'}</p>${!locked?'<div class="actions"><button class="secondary" id="save-draft">Save edits</button></div>':''}</section>
+    <section class="section-box"><div class="section-top"><h3><span class="step">2</span> Response draft</h3>${!locked?`<button class="secondary compact" id="generate-draft">${state.ai?.ai_configured?'✦ Generate AI draft':'Generate template draft'}</button>`:''}</div><p class="muted">${['OPENAI','GROQ'].includes(d.draft_source)?`${escape(d.draft_source)} draft. Verify every assertion and evidence reference.`:d.draft_source==='MERCHANT'?'Edited by merchant. Review before approval.':'Template drafting works without an API key. AI drafting is optional.'}</p><label for="draft-text" class="sr-only">Defense draft</label><textarea id="draft-text" rows="10" maxlength="12000" placeholder="Add evidence, then generate or write your response." ${locked?'readonly':''}>${escape(d.draft)}</textarea><p class="small muted" id="draft-save-status" role="status">${locked?'Response locked after submission.':'You are reviewing the saved response shown above.'}</p>${!locked?'<div class="actions"><button class="secondary" id="save-draft">Save edits</button></div>':''}</section>
     <section class="section-box"><h3><span class="step">3</span> Review & respond</h3><p class="muted">Approval applies to the current version. Changing evidence or the draft requires a new review.</p>${d.status==='REVIEW'?'<label class="check-label"><input type="checkbox" id="review-check">I checked the facts, evidence references, and response deadline.</label><button class="primary" id="approve-draft">Approve response →</button>':''}${d.status==='APPROVED'?`<label class="check-label"><input type="checkbox" id="submit-check">${state.demo?'I understand this simulates submission.':'I confirm this response should be sent to PayPal.'}</label><button class="primary" id="submit-case">${state.demo?'Simulate submission':'Send response to PayPal'} →</button>`:''}${d.status==='OPEN'?'<p class="notice">Add evidence and save a draft to start your review.</p>':''}${d.status==='SUBMITTED'?`<p class="notice">${state.demo?'Demo submission complete. Nothing was sent to PayPal.':'Response sent to PayPal for review. Submission does not mean the dispute is won.'}</p>`:''}${['SUBMISSION_UNKNOWN','SUBMITTING'].includes(d.status)?'<p class="notice">This case needs reconciliation. Check PayPal and the submission record before taking further action. Automatic retries are disabled.</p>':''}${d.status==='RESOLVED'?'<p class="notice">PayPal reports this case is resolved.</p>':''}</section><p class="small muted">Case version ${d.version} · No automated eligibility or win-rate assessment.</p></div>`;
   const dialog=$('#case-dialog'); if(!dialog.open)dialog.showModal();
   const rerender = async message => {await openCase(id);await loadCases();toast(message);};

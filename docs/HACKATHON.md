@@ -26,6 +26,10 @@ BACKEND_PORT=8001 FRONTEND_PORT=3001 bash scripts/dev.sh
 
 Keep that terminal open. Ctrl+C stops both servers. Open http://127.0.0.1:3001 rather than the backend on port 8001. If a port is busy, choose another port; do not stop an unrelated application.
 
+The inbox now includes an **AI response assistant** panel even when there are no disputes. It shows the running backend's selected provider and model. **Test AI connection** sends synthetic text to the configured provider and displays its actual response without changing any dispute. A configured key is not treated as a verified connection until this test succeeds. The same safe check can be run from Ubuntu with `bash scripts/verify-ai.sh`; it loads the saved `.env`, never prints the key, and exits with an actionable error if the provider fails.
+
+If the panel still says **template** after you saved a Groq key, confirm `AI_PROVIDER=groq` in the backend `.env`, stop your existing development launcher with Ctrl+C, and restart it. The startup message reports the selected provider and whether a key was loaded. An existing running process does not reload changed environment variables. A fresh account starts empty; **Load 4 sample cases** fills only an empty workspace in demo mode and preserves existing records. Regular accounts show their email instead of being mislabeled as a sample workspace.
+
 ## Test the human decision
 
 1. Open **Interactive demo**, then the Sam Rivera case. Seed data is synthetic and deadlines start relative to demo creation.
