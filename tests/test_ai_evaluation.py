@@ -3,7 +3,7 @@ import sys
 import pytest
 from app import evaluate_ai
 from app.config import Settings
-from app.providers import ProviderError
+from app.providers import ProviderError, ProviderHTTPError
 from app.review import AnalysisValidationError
 
 
@@ -50,3 +50,27 @@ def test_synthetic_report_retains_rejected_output_and_validation_reason(tmp_path
     assert all(r['rejected_analysis']=='synthetic rejected quotation' for r in results)
     assert all(r['analysis_validation']['code']=='QUOTE_MISMATCH' for r in results)
     assert all(r['mechanical_checks_passed'] is False and r['human_pass'] is None for r in results)
+
+
+@pytest.mark.parametrize('failed_stage',['draft','analysis'])
+def test_single_scenario_diagnostic_records_stage_and_is_not_a_full_pass(tmp_path,monkeypatch,failed_stage):
+    output=tmp_path/'diagnostic.json';calls=[]
+    monkeypatch.setattr(evaluate_ai,'Settings',lambda:Settings(ai_provider='groq',groq_key='test'))
+    def fail():
+        raise ProviderHTTPError('Safe synthetic HTTP failure',{'status':400,'code':'json_validate_failed'})
+    def draft(settings,case,records):
+        calls.append(('draft',case.paypal_id))
+        if failed_stage=='draft':fail()
+        return 'Recorded payment ['+records[0].id+'].','GROQ'
+    def analysis(settings,case,records):
+        calls.append(('analysis',case.paypal_id));fail()
+    monkeypatch.setattr(evaluate_ai,'generate_draft',draft)
+    monkeypatch.setattr(evaluate_ai,'analyze_evidence',analysis)
+    monkeypatch.setattr(sys,'argv',['evaluate-ai','--case','authorization-missing','--output',str(output)])
+    with pytest.raises(SystemExit):evaluate_ai.main()
+    report=json.loads(output.read_text());result=report['results'][0]
+    assert report['evaluation_scope']=='single_scenario' and len(report['results'])==1
+    assert result['failed_stage']==failed_stage and result['mechanical_checks_passed'] is False
+    assert result['provider_diagnostic']['code']=='json_validate_failed'
+    assert all(identity=='SYNTHETIC-authorization-missing' for _,identity in calls)
+    assert len(calls)==(1 if failed_stage=='draft' else 2)

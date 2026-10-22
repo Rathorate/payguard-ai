@@ -9,6 +9,44 @@ class ProviderError(Exception):
     pass
 
 
+class ProviderHTTPError(ProviderError):
+    def __init__(self, message, diagnostic):
+        self.diagnostic = diagnostic
+        super().__init__(message)
+
+
+def groq_http_error(response):
+    """Only fixed allowlisted metadata leaves an upstream error response."""
+    status = response.status_code
+    diagnostic = {'status': status, 'code': 'unknown', 'type': 'unknown', 'parameter': 'unknown'}
+    allowed = {
+        'code': {'json_validate_failed', 'tool_use_failed', 'model_not_found', 'model_decommissioned',
+                 'context_length_exceeded', 'rate_limit_exceeded', 'invalid_api_key', 'invalid_request_error',
+                 'content_policy_violation', 'model_permission_blocked', 'model_failed'},
+        'type': {'invalid_request_error', 'authentication_error', 'rate_limit_error', 'server_error',
+                 'permission_error', 'invalid_api_key'},
+        'param': {'model', 'messages', 'max_completion_tokens', 'response_format', 'temperature',
+                  'reasoning_effort', 'reasoning_format', 'top_p', 'seed'}}
+    try:
+        payload = response.json()
+        error = payload.get('error') if isinstance(payload, dict) else None
+        if isinstance(error, dict):
+            for field, values in allowed.items():
+                value = error.get(field)
+                if isinstance(value, str) and value in values:
+                    diagnostic['parameter' if field == 'param' else field] = value
+    except ValueError:
+        pass
+    advice = {400: 'The provider rejected this generation or request; inspect the safe error code and task stage before retrying.',
+              401: 'Check GROQ_API_KEY and restart the backend.',
+              403: 'Check Groq account and model permissions.',
+              404: 'Check GROQ_MODEL against the models enabled for your account.',
+              429: 'Groq rate limit or quota reached; wait before retrying.'}.get(status, 'Check Groq availability and your selected model.')
+    details = '; '.join(f'{key}: {value}' for key, value in diagnostic.items() if key != 'status' and value != 'unknown')
+    suffix = f' [{details}]' if details else ''
+    return ProviderHTTPError(f'Groq request failed ({status}){suffix}; no draft was changed. {advice}', diagnostic)
+
+
 class PayPal:
     def __init__(self, settings, transport=None):
         self.settings = settings
@@ -158,9 +196,7 @@ def generate_text(settings, instructions, payload, transport=None, *, response_s
                     raise ProviderError('Groq returned an incomplete, empty or oversized draft; no draft was changed')
                 return text.strip(), 'GROQ'
         except httpx.HTTPStatusError as exc:
-            status = exc.response.status_code
-            advice = {401: 'Check GROQ_API_KEY and restart the backend.', 403: 'Check Groq account and model permissions.', 404: 'Check GROQ_MODEL against the models enabled for your account.', 429: 'Groq rate limit or quota reached; wait before retrying.'}.get(status, 'Check Groq availability and your selected model.')
-            raise ProviderError(f'Groq request failed ({status}); no draft was changed. {advice}') from exc
+            raise groq_http_error(exc.response) from exc
         except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as exc:
             raise ProviderError('Groq unavailable or returned an invalid response; no draft was changed. Check the key, model and rate limit, or choose template mode.') from exc
     if not settings.openai_key:

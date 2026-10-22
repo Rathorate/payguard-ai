@@ -30,4 +30,14 @@ Mechanical checks validate returned shapes, exact excerpts and reference existen
 
 Failed synthetic analyses now retain analysis_validation (code and path) and rejected_analysis in the local report, so JSON-shape problems can be distinguished from invented or altered excerpts. This diagnostic capture is limited to the synthetic evaluator, not customer-case API errors. Keep previous reports when comparing releases; do not hide a failed run by repeatedly rerunning until one passes.
 
+Provider HTTP failures record the failed task (draft or analysis), HTTP status and recognized code/type/parameter values. Raw provider error messages, failed generations and credentials are not copied into errors or reports. Unknown metadata is labeled unknown. HTTP 400 alone does not establish whether a request parameter or generated output was rejected; inspect the code before changing configuration. Errors are not automatically retried or converted into a successful template response.
+
+To diagnose a single failing scenario without repeating all eight calls:
+
+```bash
+bash scripts/evaluate-ai.sh --case authorization-missing --output .artifacts/ai-authorization-diagnostic.json
+```
+
+The report is explicitly labeled single_scenario and is not a full evaluation pass. Keep failed reports; after a diagnosed fix, run the full suite to a new filename and manually assess all four responses.
+
 For a usefulness measurement, have the same reviewer prepare responses for equivalent synthetic cases manually and using PayGuard. Record total preparation time, correction count and evidence errors, including the human review step. Report the sample size and method; do not invent savings, dispute outcomes or win probabilities.
