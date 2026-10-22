@@ -173,14 +173,14 @@ def test_groq_review_contract_and_offline_fallback():
     def handler(request):
         body=json.loads(request.content)
         assert 'untrusted' in body['messages'][0]['content']
-        assert json.loads(body['messages'][1]['content'])['evidence'][0]['id']=='e1'
+        assert json.loads(body['messages'][1]['content'])['source_passages'][0]['evidence_id']=='e1'
         shape=body['response_format']['json_schema']
         assert body['response_format']['type']=='json_schema' and shape['strict'] is True
         assert shape['schema']['additionalProperties'] is False
-        source=shape['schema']['properties']['findings']['items']['properties']['sources']['items']
-        assert source['properties']['evidence_id']['enum']==['e1']
-        assert source['properties']['quote']['enum']==[records[0].content]
-        return httpx.Response(200,json={'choices':[{'finish_reason':'stop','message':{'content':json.dumps(findings(records))}}]})
+        source=shape['schema']['properties']['findings']['items']['properties']['source_refs']['items']
+        assert source['enum']==['S1']
+        assert 'quote' not in json.dumps(shape['schema'])
+        return httpx.Response(200,json={'choices':[{'finish_reason':'stop','message':{'content':json.dumps({'findings':[{'category':'RECORDED','statement':'A merchant receipt records payment only.','source_refs':['S1']},{'category':'MISSING','statement':'Delivery is not established.','source_refs':[]}]})}}]})
     report,source=analyze_evidence(Settings(ai_provider='groq',groq_key='test'),case,records,httpx.MockTransport(handler))
     assert source=='GROQ' and len(report['findings'])==2
     with pytest.raises(ProviderError):analyze_evidence(Settings(ai_provider='template'),case,records)
@@ -228,7 +228,7 @@ def test_structured_model_output_still_rejects_invented_quotations(model):
     with pytest.raises(AnalysisValidationError) as info:
         analyze_evidence(Settings(ai_provider='groq',groq_key='test',groq_model=model),case,records,httpx.MockTransport(handler))
     assert len(calls)==1  # No silent retries or weakening of exact-source checks.
-    assert info.value.diagnostic=={'code':'QUOTE_MISMATCH','path':'$.findings[0].sources[0]'}
+    assert info.value.diagnostic=={'code':'SOURCE_REFS','path':'$'}
     assert info.value.rejected_output==raw
     assert 'The order was delivered.' not in str(info.value)
 

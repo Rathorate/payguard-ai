@@ -45,3 +45,11 @@ bash scripts/evaluate-ai.sh --case authorization-missing --output .artifacts/ai-
 The report is explicitly labeled single_scenario and is not a full evaluation pass. Keep failed reports; after a diagnosed fix, run the full suite to a new filename and manually assess all four responses.
 
 For a usefulness measurement, have the same reviewer prepare responses for equivalent synthetic cases manually and using PayGuard. Record total preparation time, correction count and evidence errors, including the human review step. Report the sample size and method; do not invent savings, dispute outcomes or win probabilities.
+
+## Shared passage-reference protocol
+
+Both evidence analysis and case Q&A now select short source_refs such as S1 from a server-built catalog. The model never needs to reproduce long JSON-escaped quotations or pair a copied excerpt with an evidence ID. The server resolves each reference to the original record and contiguous excerpt, then runs the existing bounded report validation. Unknown references, duplicate refs/JSON keys, unsupported shapes and conflicts without two distinct evidence records are rejected. API report fields and saved reports retain their existing sources/evidence_id/quote format.
+
+This simplifies the constrained-output schema after an observed Groq 400 json_validate_failed during a real browser rehearsal. It does not establish the provider's internal failure cause or promise that upstream errors cannot recur. There is no automatic retry, no weaker-validation fallback and no automatic approval. A failure leaves saved draft/approval unchanged and preserves a prior report for that case version.
+
+Official provider reference: https://console.groq.com/docs/structured-outputs

@@ -1,3 +1,13 @@
+# Synthetic tracking rehearsal and analysis protocol repair — 22 October 2026
+
+The user attached a clearly labelled synthetic tracking record to the imported sandbox dispute. The browser verified that the previous response was cleared at case version 3. Actual Groq analysis correctly flagged absent shipment/delivery proof. Actual Groq drafting saved version 4 and explicitly called the tracking fictional, with both known evidence IDs. Actual Groq Q&A correctly said no shipment, carrier scan or delivery was established. Unchecked review acknowledgement blocked approval; the case remained REVIEW. No approval, escalation or submission was performed.
+
+A subsequent analysis call for version 4 failed safely with Groq 400 json_validate_failed. The draft was preserved and no invalid report was accepted. Analysis now shares Q&A's short passage-reference protocol: the server resolves exact original excerpts, validates all output and performs no automatic retry. This reduces long quotation/schema complexity; it is not proof of the upstream internal cause or a guarantee against future failures. Current offline release: 211 Python tests passed, two local PostgreSQL skips, one non-failing TestClient warning; 10 frontend tests passed; 91% line coverage. Actual provider retest of this repair still requires restarting the user's WSL backend. Previous release CI 39802191339 succeeded, including PostgreSQL; new release CI must be checked separately.
+
+Read-only Render discovery found no PayGuard service and one existing free PostgreSQL database owned by CropGrid. No cloud resource or secret was changed. See LAUNCH_CHECKLIST.md for remaining human review, hosted verification, independent database and webhook gates.
+
+---
+
 # Actual sandbox refresh rehearsal — 22 October 2026
 
 After the user restarted commit 5bab877 and signed in, the browser refreshed PP-R-SLL-10194090 through the new workflow endpoint. The provider observation showed INQUIRY, WAITING_FOR_SELLER_RESPONSE, seller deadline 11 November 2026 at 11:49:44 UTC, and the allowlisted action escalate. No provide-evidence action was returned in the supported action set. Draft text, evidence IDs, REVIEW state and case version 2 matched before/after. No browser error/warning was recorded during this sequence. No AI request, approval, escalation or submission occurred.

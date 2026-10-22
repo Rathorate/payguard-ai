@@ -61,6 +61,8 @@ The Python suite includes a real two-process HTTP workflow: cookies, CSRF, PDF u
 
 ## Deploy
 
+Follow the [launch checklist](docs/LAUNCH_CHECKLIST.md) for verified results, the human review gate, isolated hosted data, webhook verification and judge access.
+
 - **Vercel:** root `frontend`, preset Other, set `BACKEND_ORIGIN` to your backend HTTPS origin. `vercel.ts` configures the native rewrite and publishes `public/`.
 - **Render/Railway:** use the repository root and root Dockerfile, or native Python build/start commands from [DEPLOYMENT.md](docs/DEPLOYMENT.md). Set managed `DATABASE_URL`, the exact frontend `APP_ORIGIN`, and `SECURE_COOKIES=true`.
 - **PayPal:** add an inbox worker when sandbox access is ready; webhook requests go directly to the backend.
