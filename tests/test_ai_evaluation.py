@@ -74,3 +74,28 @@ def test_single_scenario_diagnostic_records_stage_and_is_not_a_full_pass(tmp_pat
     assert result['provider_diagnostic']['code']=='json_validate_failed'
     assert all(identity=='SYNTHETIC-authorization-missing' for _,identity in calls)
     assert len(calls)==(1 if failed_stage=='draft' else 2)
+
+
+@pytest.mark.parametrize('reference,expected',[
+    ('(E-RECEIPT)',['NO_LINKED_DRAFT_SOURCE']),
+    ('(E\u2011RECEIPT)',['NO_LINKED_DRAFT_SOURCE']),
+    ('',['NO_LINKED_DRAFT_SOURCE']),
+    ('[invented]',['UNKNOWN_DRAFT_CITATIONS','NO_LINKED_DRAFT_SOURCE']),
+    ('[E-RECEIPT]',[]),
+])
+def test_evaluation_distinguishes_linked_citations_from_parentheses_or_no_references(tmp_path,monkeypatch,reference,expected):
+    output=tmp_path/'citation-report.json'
+    monkeypatch.setattr(evaluate_ai,'Settings',lambda:Settings(ai_provider='groq',groq_key='test'))
+    monkeypatch.setattr(evaluate_ai,'generate_draft',lambda *args:('Merchant records payment '+reference+'.','GROQ'))
+    monkeypatch.setattr(evaluate_ai,'analyze_evidence',lambda *args:({'findings':[
+        {'category':'MISSING','statement':'Delivery is not established.','sources':[]}]},'GROQ'))
+    monkeypatch.setattr(sys,'argv',['evaluate-ai','--case','receipt-only','--output',str(output)])
+    if expected:
+        with pytest.raises(SystemExit) as info:evaluate_ai.main()
+        assert info.value.code==1
+    else:
+        evaluate_ai.main()
+    result=json.loads(output.read_text())['results'][0]
+    assert result['mechanical_failures']==expected
+    assert result['mechanical_checks_passed'] is (not expected)
+    assert result['human_pass'] is None

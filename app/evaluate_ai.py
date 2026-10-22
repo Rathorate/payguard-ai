@@ -35,7 +35,15 @@ def main():
             stage='analysis'
             report,_=analyze_evidence(settings,item,records)
             result['analysis']=report
-            result['mechanical_checks_passed']=not result['citations']['unknown_ids']
+            failures=[]
+            if result['citations']['unknown_ids']:
+                failures.append('UNKNOWN_DRAFT_CITATIONS')
+            if records and not any(p['evidence_ids'] for p in result['citations']['paragraphs']):
+                failures.append('NO_LINKED_DRAFT_SOURCE')
+            result['mechanical_failures']=failures
+            result['mechanical_checks_passed']=not failures
+            if failures:
+                result.update(failed_stage='draft_citations',error='Draft citation checks failed: '+', '.join(failures))
         except ProviderError as exc:
             result.update(error=str(exc),failed_stage=stage,mechanical_checks_passed=False)
             if isinstance(exc, ProviderHTTPError):
