@@ -245,7 +245,7 @@ async function openCase(id) {
       }catch(error){$('#question-status').textContent=error.message;throw error;}
     });
   });
-  $('#analyze-evidence')?.addEventListener('click',event=>busy(event.currentTarget,async()=>{assertSaved();await api(`/disputes/${id}/analyze`,{method:'POST',body:{version:version()}});await rerender('Evidence checks saved. Review the excerpts and gaps; nothing was approved.');}));
+  $('#analyze-evidence')?.addEventListener('click',event=>busy(event.currentTarget,async()=>{assertSaved();await api(`/disputes/${id}/analyze`,{method:'POST',body:{version:version(),refresh:!!review.analysis}});await rerender('Evidence checks saved. Review the excerpts and gaps; nothing was approved.');}));
   $('#draft-text').addEventListener('input',()=>{
     const dirty=$('#draft-text').value!==d.draft;
     $('#draft-save-status').textContent=dirty?'Unsaved edits. Save and review again before approval, export or submission.':'You are reviewing the saved response shown above.';

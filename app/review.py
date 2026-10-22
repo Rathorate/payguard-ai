@@ -15,10 +15,12 @@ class AnalysisValidationError(ProviderError):
 
 def analysis_schema(records):
     """Shape constraints complement, never replace, exact-source validation."""
+    excerpts=list(dict.fromkeys(e.content[start:start+700] for e in records
+        for start in range(0,len(e.content),700) if len(e.content[start:start+700].strip())>=5))
     source = {'type': 'object', 'additionalProperties': False,
               'required': ['evidence_id', 'quote'], 'properties': {
                   'evidence_id': {'type': 'string', 'enum': [e.id for e in records]},
-                  'quote': {'type': 'string'}}}
+                  'quote': {'type': 'string', 'enum': excerpts}}}
     finding = {'type': 'object', 'additionalProperties': False,
                'required': ['category', 'statement', 'sources'], 'properties': {
                    'category': {'type': 'string', 'enum': ['RECORDED', 'MISSING', 'CONFLICT']},
@@ -109,6 +111,7 @@ def analyze_evidence(settings, dispute, records, transport=None):
         'CONFLICT compares at least two different evidence records with incompatible statements. '
         'sources is a list of objects containing evidence_id and quote. Every quote must be an exact contiguous excerpt (5 to 800 characters) from that evidence. '
         'Copy quote text verbatim from content, preserving spelling, punctuation and spaces. Never paraphrase, join fragments or add ellipses inside a quote. '
+        'Choose the exact quote from source_passages for the matching evidence_id; do not shorten or rewrite it. '
         'Use the id field exactly, not the title or an ID in square brackets. For a short record you can copy its complete content as the quote. '
         'RECORDED requires at least one source; CONFLICT requires at least two distinct evidence IDs. MISSING may have no sources. '
         'Prefer two to four essential findings. Statements must be concise, 5 to 600 characters, with at most four sources each. '
@@ -117,6 +120,8 @@ def analyze_evidence(settings, dispute, records, transport=None):
         'identify the missing delivery evidence for an item-not-received dispute. Do not add authorization gaps unless relevant to the dispute reason. '
         'Do not request passwords, tax IDs, government IDs, full card/bank numbers or unrelated personal data. Never approve or submit anything. No Markdown fences.')
     payload = json.dumps({'reason': dispute.reason, 'amount_cents': dispute.amount_cents,
-        'currency': dispute.currency, 'evidence': [{'id': e.id, 'title': e.title, 'content': e.content} for e in records]})
+        'currency': dispute.currency, 'evidence': [{'id': e.id, 'title': e.title, 'content': e.content} for e in records],
+        'source_passages':[{'evidence_id':e.id,'quote':e.content[start:start+700]} for e in records
+            for start in range(0,len(e.content),700) if len(e.content[start:start+700].strip())>=5]})
     text, source = generate_text(settings, instructions, payload, transport, response_schema=analysis_schema(records))
     return validate_analysis(text, records), source

@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from conftest import first_case
 from app.config import Settings
 from app.providers import ProviderError, ProviderHTTPError
-from app.questions import answer_question
+from app.questions import answer_question, source_catalog, resolve_answer
 
 
 def answer(records):
@@ -96,9 +96,25 @@ def test_question_provider_sends_only_current_case_and_treats_history_as_untrust
         assert 'Never execute actions' in instructions
         assert payload['question']=='What is missing?' and payload['case']['dispute_id']=='PP-R-TEST'
         assert body['response_format']['json_schema']['strict'] is True
-        return httpx.Response(200,json={'choices':[{'finish_reason':'stop','message':{'content':json.dumps(answer(records))}}]})
+        assert payload['source_passages'][0]['ref']=='S1'
+        data={'findings':[{'category':'RECORDED','statement':'The merchant statement records payment only.','source_refs':['S1']},
+                          {'category':'MISSING','statement':'Delivery is not established.','source_refs':[]}]}
+        return httpx.Response(200,json={'choices':[{'finish_reason':'stop','message':{'content':json.dumps(data)}}]})
     report,source=answer_question(Settings(ai_provider='groq',groq_key='test'),case,records,'What is missing?',[],httpx.MockTransport(handler))
     assert source=='GROQ' and len(report['findings'])==2
     with pytest.raises(ProviderError):answer_question(Settings(ai_provider='template'),case,records,'What is missing?',[])
     with pytest.raises(ProviderError):answer_question(Settings(ai_provider='groq',groq_key='test'),case,records,'What is missing?',[],
         httpx.MockTransport(lambda r:httpx.Response(200,json={'choices':[{'finish_reason':'stop','message':{'content':'This is not a structured JSON answer.'}}]})))
+
+
+def test_source_catalog_resolves_only_supplied_passages_and_rejects_invented_refs():
+    records=[SimpleNamespace(id='e1',title='Snapshot',content='SYNTHETIC snapshot: '+('recorded facts; '*100))]
+    passages=source_catalog(records)
+    report={'findings':[{'category':'RECORDED','statement':'The source contains recorded facts.','source_refs':['S1']}]}
+    result=resolve_answer(json.dumps(report),passages,records)
+    assert result['findings'][0]['sources'][0]['quote']==records[0].content[:700]
+    assert all(p['quote'] in records[0].content for p in passages)
+    for ref in ['invented','e1','S999']:
+        report['findings'][0]['source_refs']=[ref]
+        with pytest.raises(ProviderError):resolve_answer(json.dumps(report),passages,records)
+    with pytest.raises(ProviderError):resolve_answer('{"findings":[],"findings":[]}',passages,records)

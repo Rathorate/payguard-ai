@@ -18,7 +18,7 @@ from .config import Settings
 from .models import Base, Tenant, User, LoginSession, Dispute, Evidence, Audit, Webhook, Submission, RateBucket, DraftRevision, EvidenceAnalysis, database
 from .security import digest, hash_password, verify_password
 from .providers import PayPal, ProviderError, ProviderHTTPError, generate_draft
-from .schemas import Credentials, Registration, NewDispute, NewEvidence, Version, DraftEdit, Approval, SubmissionInput, PayPalImport, CaseQuestion
+from .schemas import Credentials, Registration, NewDispute, NewEvidence, Version, DraftEdit, Approval, SubmissionInput, PayPalImport, CaseQuestion, AnalysisRequest
 from .paypal_import import snapshot as paypal_snapshot
 from .review import analyze_evidence, citation_report, validate_analysis
 from .questions import answer_question, validate_answer
@@ -290,7 +290,7 @@ def create_app(settings=None):
                 'history': [serialize(r) for r in history], 'latest_generated': serialize(baseline) if baseline else None}
 
     @app.post('/api/v1/disputes/{identity}/analyze')
-    def analyze(identity: str, body: Version, who=Depends(principal), db=Depends(db_session)):
+    def analyze(identity: str, body: AnalysisRequest, who=Depends(principal), db=Depends(db_session)):
         item = get_dispute(db, who[0].tenant_id, identity)
         editable(item)
         if item.version != body.version:
@@ -299,7 +299,7 @@ def create_app(settings=None):
         if not records:
             raise HTTPException(422, 'Add evidence before analyzing it')
         existing = db.scalar(select(EvidenceAnalysis).where(EvidenceAnalysis.tenant_id==who[0].tenant_id, EvidenceAnalysis.dispute_id==identity, EvidenceAnalysis.case_version==body.version))
-        if existing:
+        if existing and not body.refresh:
             return {**serialize(existing), 'report': json.loads(existing.report)}
         rate_limit(db, 'analyze:'+who[0].tenant_id, 5, 60)
         try:
@@ -311,8 +311,12 @@ def create_app(settings=None):
         result = db.execute(update(Dispute).where(Dispute.id==identity, Dispute.tenant_id==who[0].tenant_id, Dispute.version==body.version).values(version=body.version))
         if result.rowcount != 1:
             raise HTTPException(409, 'The case changed during analysis. Refresh; nothing was approved.')
-        record = EvidenceAnalysis(tenant_id=who[0].tenant_id, dispute_id=identity, case_version=body.version, source=source, report=json.dumps(report))
-        db.add(record)
+        if existing:
+            record=existing
+            record.source=source;record.report=json.dumps(report);record.created_at=int(time.time())
+        else:
+            record = EvidenceAnalysis(tenant_id=who[0].tenant_id, dispute_id=identity, case_version=body.version, source=source, report=json.dumps(report))
+            db.add(record)
         audit(db, who[0].tenant_id, who[0].email, 'EVIDENCE_ANALYZED_'+source, identity)
         try:
             db.commit()

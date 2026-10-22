@@ -402,7 +402,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Version"
+                "$ref": "#/components/schemas/AnalysisRequest"
               }
             }
           }
@@ -1058,6 +1058,26 @@
   },
   "components": {
     "schemas": {
+      "AnalysisRequest": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Version"
+          },
+          "refresh": {
+            "type": "boolean",
+            "title": "Refresh",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version"
+        ],
+        "title": "AnalysisRequest"
+      },
       "Approval": {
         "properties": {
           "version": {

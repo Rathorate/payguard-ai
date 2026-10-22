@@ -36,6 +36,25 @@ def test_analysis_is_grounded_cached_versioned_and_never_approves(merchant,app):
     assert merchant.get(url).json()['status']=='REVIEW'
 
 
+def test_explicit_refresh_keeps_last_saved_report_on_provider_failure(merchant,app):
+    item=first_case(merchant);url='/api/v1/disputes/'+item['id']
+    app.state.reviewer=lambda settings,case,records:(findings(records),'GROQ')
+    initial=merchant.post(url+'/analyze',json={'version':item['version']}).json()
+    def failed(*args):raise ProviderError('Synthetic provider unavailable')
+    app.state.reviewer=failed
+    assert merchant.post(url+'/analyze',json={'version':item['version']}).status_code==200
+    assert merchant.post(url+'/analyze',json={'version':item['version'],'refresh':True}).status_code==502
+    assert merchant.get(url+'/review').json()['analysis']['report']==initial['report']
+    def replacement(settings,case,records):
+        report=findings(records);report['findings'][1]['statement']='The supplied receipt does not establish delivery.'
+        return report,'GROQ'
+    app.state.reviewer=replacement
+    refreshed=merchant.post(url+'/analyze',json={'version':item['version'],'refresh':True})
+    assert refreshed.status_code==200
+    assert refreshed.json()['report']['findings'][1]['statement'].startswith('The supplied receipt')
+    assert merchant.get(url).json()['version']==item['version']
+
+
 def test_original_generation_human_edit_approval_and_withdrawal_are_retained(merchant):
     item=first_case(merchant);url='/api/v1/disputes/'+item['id']
     generated=merchant.post(url+'/draft',json={'version':item['version']}).json()
@@ -160,6 +179,7 @@ def test_groq_review_contract_and_offline_fallback():
         assert shape['schema']['additionalProperties'] is False
         source=shape['schema']['properties']['findings']['items']['properties']['sources']['items']
         assert source['properties']['evidence_id']['enum']==['e1']
+        assert source['properties']['quote']['enum']==[records[0].content]
         return httpx.Response(200,json={'choices':[{'finish_reason':'stop','message':{'content':json.dumps(findings(records))}}]})
     report,source=analyze_evidence(Settings(ai_provider='groq',groq_key='test'),case,records,httpx.MockTransport(handler))
     assert source=='GROQ' and len(report['findings'])==2

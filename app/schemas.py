@@ -44,6 +44,10 @@ class Version(Input):
     version: int = Field(strict=True, gt=0)
 
 
+class AnalysisRequest(Version):
+    refresh: bool = Field(default=False, strict=True)
+
+
 class DraftEdit(Version):
     text: str = Field(min_length=20, max_length=12000)
 
