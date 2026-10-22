@@ -77,9 +77,9 @@ CREATE TABLE webhook_inbox (
 	FOREIGN KEY(tenant_id) REFERENCES tenants (id)
 );
 
-CREATE INDEX ix_webhook_inbox_available_at ON webhook_inbox (available_at);
-
 CREATE INDEX ix_webhook_inbox_state ON webhook_inbox (state);
+
+CREATE INDEX ix_webhook_inbox_available_at ON webhook_inbox (available_at);
 
 CREATE TABLE evidence (
 	id VARCHAR(36) NOT NULL, 

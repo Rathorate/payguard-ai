@@ -9,8 +9,6 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, Depends, HTTPException, Request, Response, UploadFile, File, Form, Query, Header
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, update, delete, func, or_
 from sqlalchemy.exc import IntegrityError
 from pypdf import PdfReader
@@ -23,7 +21,6 @@ from .schemas import Credentials, Registration, NewDispute, NewEvidence, Version
 from .service import audit, get_dispute, evidence_for, transition, editable, add_evidence, serialize, demo_seed
 
 log = logging.getLogger('payguard')
-STATIC = Path(__file__).resolve().parent.parent / 'static'
 MAX_BODY = 6 * 1024 * 1024
 
 
@@ -395,9 +392,8 @@ def create_app(settings=None):
 
     @app.get('/')
     def index():
-        return FileResponse(STATIC / 'index.html')
+        return {'service': 'PayGuard API', 'docs': '/docs', 'health': '/health/ready'}
 
-    app.mount('/static', StaticFiles(directory=STATIC), name='static')
     return app
 
 

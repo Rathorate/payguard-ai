@@ -1,3 +1,16 @@
+# Separate deployment verification - 22 October 2026
+
+- Python regression suite plus real separate frontend/API HTTP workflow: **30 passed, 1 skipped**. The skipped check requires disposable PostgreSQL.
+- **4 Node tests passed**: valid/invalid deployment origins, public assets/path isolation, cookie/CSRF/Origin and multipart byte forwarding, unavailable backend response.
+- Frontend asset/config build check, JavaScript syntax and direct programmatic Vercel config import passed.
+- New workflow exercised the real Node frontend and Uvicorn backend on different ports, including login, PDF extraction, draft, approval, simulated submission, audit and logout.
+- Bash syntax checks passed for bootstrap, test and development launchers.
+- Existing database and provider behavior remains covered. A local temp-folder ownership error was avoided by using a fresh workspace test directory; application tests then passed.
+- Vercel/Render/Railway deployments, Docker startup, managed PostgreSQL and credentialed provider calls remain unverified. Local proxy tests do not certify a cloud deployment.
+- Backend container entrypoint smoke test passed with a dynamically assigned PORT, and the separate frontend served the dashboard and forwarded API calls. Docker image construction itself remains unverified.
+
+The previous MVP verification below is historical. Its combined-host routing and UI paths are superseded by DEPLOYMENT.md.
+
 # Verification record
 
 Verified locally on 20 October 2026 using Windows, Python 3.12.14 and the dependency versions in requirements.txt.

@@ -46,5 +46,19 @@ services:
       migrate:
         condition: service_completed_successfully
     restart: unless-stopped
+  frontend:
+    image: node:22-alpine
+    working_dir: /frontend
+    command: [node, dev-server.mjs]
+    volumes:
+      - ./frontend:/frontend:ro
+    ports:
+      - 127.0.0.1:3000:3000
+    environment:
+      FRONTEND_HOST: 0.0.0.0
+      BACKEND_ORIGIN: http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
 volumes:
   postgres:

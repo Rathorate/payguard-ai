@@ -1,3 +1,9 @@
+# Current deployment architecture
+
+The frontend and backend are now independent deployment projects. See [DEPLOYMENT.md](DEPLOYMENT.md) for the current topology and auth transport. The static UI moved from static/ into frontend/public/. FastAPI no longer serves UI assets. The browser uses its frontend origin for /api/v1, which Vercel rewrites to Render/Railway; locally a streaming Node proxy provides the same route. SameSite=Strict cookies, CSRF, tenant isolation, review, evidence, audit and submission safeguards remain. The backend stays at the repository root in app/.
+
+The original product/data-model architecture below remains useful; references to one combined static/API deployment or static/ source paths are superseded by this update.
+
 # Architecture: minimal now, explicit growth path
 
 ## Product boundary

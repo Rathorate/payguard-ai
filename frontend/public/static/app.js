@@ -13,6 +13,7 @@ function toast(message) {$('#toast').textContent = message; $('#toast').hidden =
 async function api(path, options = {}) {
   const headers = {'X-CSRF-Token': state.csrf, ...options.headers};
   if (options.body && !(options.body instanceof FormData)) {headers['Content-Type'] = 'application/json'; options.body = JSON.stringify(options.body);}
+  // Vercel (or the local frontend server) forwards this path to the separate API.
   const response = await fetch('/api/v1' + path, {...options, headers, credentials:'same-origin'});
   if (response.status === 204) return null;
   const data = await response.json();

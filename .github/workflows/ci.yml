@@ -28,4 +28,8 @@ jobs:
       - run: python -m pytest tests/test_postgres.py
         env:
           TEST_POSTGRES_URL: postgresql+psycopg://payguard:test-only-password@localhost/payguard
-      - run: node --check static/app.js
+      - run: node --check frontend/public/static/app.js
+      - run: node --test frontend/tests/*.test.mjs
+      - run: node frontend/check.mjs
+        env:
+          BACKEND_ORIGIN: https://payguard-ci.onrender.com

@@ -1,0 +1,11 @@
+{
+  "name": "payguard-frontend",
+  "private": true,
+  "type": "module",
+  "engines": {"node": ">=22.18.0"},
+  "scripts": {
+    "dev": "node dev-server.mjs",
+    "build": "node check.mjs",
+    "test": "node --test tests/*.test.mjs"
+  }
+}

@@ -1,66 +1,77 @@
 # PayGuard AI
 
-A runnable hackathon MVP for merchant dispute operations, based on the supplied PayGuard brief. It combines a dispute inbox, evidence records, text-PDF extraction, template/optional AI defense drafting, mandatory human review, simulated or PayPal submission, and an audit log.
+A hackathon MVP for merchant dispute operations: accounts, demo fixtures, searchable dispute inbox, evidence text/PDF import, template or optional AI drafting, merchant review, simulated/PayPal submission and audit history.
 
-**Status:** working MVP with production-oriented controls. Not a certified payment platform or proven million-user deployment. Live provider acceptance requires your sandbox credentials and testing. This repository deliberately avoids claiming that recorded tracking statements are independently verified.
+**Status:** tested MVP with production-oriented controls. Provider acceptance, cloud deployment and scale still require validation. Recorded merchant evidence is not independently carrier-verified.
 
-## Run locally
+## Separate frontend and backend
 
-For Ubuntu / WSL, see [the WSL development guide](docs/WSL.md).
+| Component | Source | Deployment |
+|---|---|---|
+| Frontend | `frontend/` | Vercel, static UI and native API rewrite |
+| Backend | `app/`, deployment root is the repository root | Render or Railway, FastAPI |
+| Database | Managed PostgreSQL | Backend and optional worker only |
+| Optional PayPal worker | `app/worker.py` | Separate backend process |
 
-Python 3.12 or later:
+All existing features remain. See [deployment setup](docs/DEPLOYMENT.md) for the two hosting projects, API routing and session/CSRF configuration. The browser calls `/api/v1` on the frontend origin; its host forwards those requests to the independently deployed backend. Provider keys remain on the backend.
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+## Run locally in Ubuntu / WSL
+
+Requires Python 3.12+ and Node.js 22.18+. Keep your existing `.env` and database; bootstrap does not overwrite them.
+
+```bash
+bash scripts/bootstrap.sh
+bash scripts/test.sh
+BACKEND_PORT=8001 FRONTEND_PORT=3000 bash scripts/dev.sh
 ```
 
-Open http://127.0.0.1:8000 and select **Open interactive demo**. Each demo gets an isolated workspace with four synthetic disputes. No provider keys are needed. State persists in `payguard.db`. Demo responses never go to PayPal. Creating a workspace gives you an empty account; use demo to see sample records.
+Open http://127.0.0.1:3000 and select **Open interactive demo**. Two separate processes run; Ctrl+C stops both. The launcher sets the local frontend Origin correctly even if an older `.env` contains port 8000. Demo mode needs no API keys and simulates every submission. Each demo workspace gets four synthetic disputes; regular account registration starts an empty workspace.
 
-On macOS/Linux, use `python3`, `.venv/bin/python`, and the same module commands.
+On Windows, create/install a Python virtual environment, then run the backend and frontend in two PowerShell terminals:
+
+```powershell
+# Terminal 1, at repository root
+$env:APP_ORIGIN='http://127.0.0.1:3000'
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8001
+
+# Terminal 2, at repository root
+$env:BACKEND_ORIGIN='http://127.0.0.1:8001'
+node frontend/dev-server.mjs
+```
 
 ## Test
 
-```powershell
-.\.venv\Scripts\python.exe -m pytest --cov=app --cov-report=term-missing
-node --check static/app.js
+```bash
+bash scripts/test.sh
 ```
 
-`tests/test_postgres.py` runs only when `TEST_POSTGRES_URL` points to a **disposable** database. CI provisions PostgreSQL and runs that test. Other tests exercise HTTP APIs, auth/session/CSRF, tenant isolation, stale-write protection, evidence extraction, review and submission, durable webhook retries, and mocked provider contracts. Test dependencies are pinned alongside runtime dependencies for one-step hackathon setup.
+The Python suite includes a real two-process HTTP workflow: cookies, CSRF, PDF upload, drafting, approval, simulated submission, audit and logout. Existing auth, tenant isolation, optimistic locking, provider and worker tests remain. Node tests verify assets, deployment configuration, streaming proxy headers/bodies and backend failures. `TEST_POSTGRES_URL` must point at a disposable database to run the PostgreSQL smoke test. CI provisions one; written CI configuration alone is not evidence of a successful run.
 
-See [verification](docs/VERIFICATION.md) for actual local results and remaining checks.
+## Deploy
 
-## Design and implementation
+- **Vercel:** root `frontend`, preset Other, set `BACKEND_ORIGIN` to your backend HTTPS origin. `vercel.ts` configures the native rewrite and publishes `public/`.
+- **Render/Railway:** use the repository root and root Dockerfile, or native Python build/start commands from [DEPLOYMENT.md](docs/DEPLOYMENT.md). Set managed `DATABASE_URL`, the exact frontend `APP_ORIGIN`, and `SECURE_COOKIES=true`.
+- **PayPal:** add an inbox worker when sandbox access is ready; webhook requests go directly to the backend.
 
-- [System, UI, database, API, file structure and scale plan](docs/ARCHITECTURE.md)
-- [Operations and provider setup](docs/OPERATIONS.md)
-- Interactive API contract: `/docs` (Swagger) and `/openapi.json`
-- Generated schema: [docs/schema.sql](docs/schema.sql)
-- Generated API specification: [docs/openapi.json](docs/openapi.json)
+For a local PostgreSQL/containers setup, copy `.env.example` to `.env`, add a URL-safe random `POSTGRES_PASSWORD`, and run `docker compose up --build`. The frontend is port 3000, API port 8000. The Node Compose service is a local development proxy; production uses Vercel. This initializes a fresh database but does not provide future schema migrations.
 
 ## API keys later
 
-Copy `.env.example` to `.env`. It is excluded from Git. Docker Compose loads it; local Python reads **process environment variables**, so set variables in the terminal before launching. Credentials never belong in the frontend or a commit.
+The dev script loads the trusted local `.env`. Direct Python commands read process environment variables. Never commit `.env`, databases or keys.
 
-Optional drafting: set `OPENAI_API_KEY` and `OPENAI_MODEL`. The model must support the Responses API and be enabled for your account. With no key, the app explicitly uses a deterministic template. Inputs include evidence text; assess data handling before using real customer records.
+Optional AI drafting accepts `OPENAI_API_KEY` and `OPENAI_MODEL`. Without a key, drafting uses an explicit deterministic template. The adapter boundary is `generate_draft` in `app/providers.py`; retain its return shape, failure handling and mandatory human review. Real model quality requires credentialed evaluation.
 
-PayPal sandbox: set `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_WEBHOOK_ID`, `PAYPAL_TENANT_ID`, and `PAYPAL_ENVIRONMENT=sandbox`. The merchant workspace ID is returned by `/api/v1/auth/me`, shown in the API response after sign-in, or listed with `python -m app.manage tenants`.
+PayPal sandbox configuration needs `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_WEBHOOK_ID`, `PAYPAL_TENANT_ID` and `PAYPAL_ENVIRONMENT=sandbox`. Find the merchant tenant via authenticated `/api/v1/auth/me` or `python -m app.manage tenants`. Keep `DEMO_MODE=true` until ready: all submissions remain simulated in that mode. Real sandbox requests require `DEMO_MODE=false`, HTTPS frontend Origin and secure cookies. See [operations](docs/OPERATIONS.md).
 
-To send actual sandbox requests, `DEMO_MODE` must be `false`. This requires HTTPS `APP_ORIGIN` and `SECURE_COOKIES=true`; use an HTTPS reverse proxy/tunnel. Configure the webhook URL `/api/v1/webhooks/paypal`, subscribe to `CUSTOMER.DISPUTE.CREATED`, `.UPDATED`, and `.RESOLVED`, and run `python -m app.worker`. Verification must succeed before an event is persisted.
+Existing MVP limits remain: one connected PayPal merchant per deployment, notes-only submission, manual source evidence, text-PDF extraction without image OCR/original-file retention, no carrier integration, no auto-submission, no email recovery/team RBAC, and no reconciliation UI. These are follow-on features.
 
-MVP limitations: one connected PayPal merchant per deployment, notes-only evidence submission, manual source evidence, no carrier integration, no image OCR, no original-PDF retention, no auto-submission, no email verification/password reset/team RBAC, no provider reconciliation UI. These are explicit follow-on features, not simulated integrations.
+## Design and verification
 
-## Docker / PostgreSQL
+- [Separate deployment and migration guide](docs/DEPLOYMENT.md)
+- [Architecture, schema, API and scale plan](docs/ARCHITECTURE.md)
+- [Operations and provider setup](docs/OPERATIONS.md)
+- [WSL guide](docs/WSL.md)
+- [API specification](docs/openapi.json) and [SQL schema](docs/schema.sql)
+- [Verification record](docs/VERIFICATION.md)
 
-Set `.env` values and a URL-safe random `POSTGRES_PASSWORD` (at least 32 alphanumeric characters). Then:
-
-```sh
-docker compose up --build
-```
-
-This starts PostgreSQL, initializes the schema once, then starts the API and durable inbox worker. A local demo may use HTTP; production must use a TLS reverse proxy. The API port is bound to loopback. Do not expose the database publicly. PostgreSQL volumes persist data. `app.manage init-db` initializes a fresh schema; it does not upgrade an existing schema. Introduce versioned migrations before subsequent production schema changes.
-
-## Source references
-
-Provider adapters were checked against [PayPal evidence submission](https://developer.paypal.com/api/customer-disputes/v1/disputes-provide-evidence), [PayPal webhook verification](https://developer.paypal.com/api/webhooks/v1/verify-webhook-signature-post), [OpenAI text generation](https://developers.openai.com/api/docs/guides/text), and [FastAPI container deployment](https://fastapi.tiangolo.com/deployment/docker/). See operations for the narrower submission behavior implemented here.
+Official hosting references: [Vercel programmatic configuration](https://vercel.com/docs/project-configuration/vercel-ts), [external rewrites](https://vercel.com/docs/routing/rewrites), [Render web services](https://render.com/docs/web-services), [Railway FastAPI](https://docs.railway.com/guides/fastapi).

@@ -1,3 +1,7 @@
+# Deployment update
+
+Frontend and backend now deploy independently. Follow [DEPLOYMENT.md](DEPLOYMENT.md) for the current routing, ports and hosting settings. Provider operations below still apply; descriptions of a combined static/API deployment are superseded.
+
 # Operations and integration handoff
 
 ## Demo versus provider requests
@@ -22,7 +26,7 @@ AI drafting: https://developers.openai.com/api/docs/guides/text
 
 ## Deployment
 
-Run the provided Docker Compose profile for a single-host setup or deploy the same API image and worker image to managed compute with managed PostgreSQL. It is not published to a hosting provider by this task. The static frontend is served with the authenticated API so a separately hosted static demo would not be a functional deployment.
+Run the provided Docker Compose profile for a single-host setup or deploy the same API image and worker image to managed compute with managed PostgreSQL. It is not published to a hosting provider by this task. The separately hosted frontend forwards /api/v1 to this API through a same-origin proxy.
 
 Keep API containers stateless when using PostgreSQL. Run initial schema setup as a one-off release job. Configure database max connections and per-process pools together; default SQLAlchemy pools are a starting point only. The Docker command ignores forwarded headers. Only enable trusted proxy handling for explicit proxy IPs at your host, never all Internet callers. Auth throttling currently uses the actual connection IP; a proxy deployment needs edge rate limiting or correctly trusted client IPs. Database throttling alone is not a DDoS defense.
 
