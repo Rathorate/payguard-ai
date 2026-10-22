@@ -1,3 +1,9 @@
+# Actual sandbox refresh rehearsal — 22 October 2026
+
+After the user restarted commit 5bab877 and signed in, the browser refreshed PP-R-SLL-10194090 through the new workflow endpoint. The provider observation showed INQUIRY, WAITING_FOR_SELLER_RESPONSE, seller deadline 11 November 2026 at 11:49:44 UTC, and the allowlisted action escalate. No provide-evidence action was returned in the supported action set. Draft text, evidence IDs, REVIEW state and case version 2 matched before/after. No browser error/warning was recorded during this sequence. No AI request, approval, escalation or submission occurred.
+
+This exposed an ordering issue in next-step guidance: missing evidence-submission capability must be explained before prompting approval. The follow-up fix adds regressions for OPEN, REVIEW and APPROVED states and passed 202 Python tests (two local PostgreSQL skips, one non-failing TestClient warning), 10 frontend tests and 91% line coverage. Provider enum labels are displayed as readable words rather than long underscore-separated strings. The previous release passed GitHub Actions 39801249575, including PostgreSQL. A later release must have its own CI result checked.
+
 # Latest case workflow verification — 22 October 2026
 
 The next-action/checklist release passed 199 Python tests (two local PostgreSQL skips, one non-failing TestClient deprecation warning), 10 Node frontend tests, JS syntax and frontend deployment validation. Coverage: 91%. An isolated browser fixture verified the next-action panel, read-only status refresh preserving case version, checklist source links and no new console warnings/errors. At 390 px and 1024 px breakpoints page/panel scroll widths matched client widths. The viewport was reset after testing. The provider response in this new browser check was a synthetic HTTP fixture, not a fresh PayPal credential test.

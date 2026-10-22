@@ -104,10 +104,10 @@ def preparation(item, records, observation, analysis, demo, connected):
         next_step = 'PayPal is not waiting for seller evidence. Review the case status and available actions in PayPal.'
     elif not provider['actions']:
         next_step = 'No supported action link was returned. Check the case in PayPal; do not assume evidence submission is available.'
+    elif 'provide-evidence' not in provider['actions']:
+        next_step = 'PayPal is not currently offering evidence submission for this case. You can prepare and review records locally; review the other available actions in PayPal before proceeding.'
     elif item.status != 'APPROVED':
         next_step = 'Review missing facts and source excerpts, save corrections, then approve the response.'
-    elif 'provide-evidence' not in provider['actions']:
-        next_step = 'Evidence submission is not available in this observation. Review the other available actions in PayPal.'
     else:
         next_step = 'Review the approved packet, then explicitly confirm simulation.' if demo else 'Review the approved packet before explicitly confirming a PayPal send.'
     return {'provider': provider, 'stale': stale, 'facts_changed': mismatch, 'connected': connected,

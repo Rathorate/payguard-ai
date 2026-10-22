@@ -112,3 +112,13 @@ def test_observation_age_and_fact_change():
     data={'observed_at':int(time.time())-301,'due_at':case.due_at+1,'reason':'INQUIRY','amount_cents':1000,'currency':'USD','actions':[]}
     result=preparation(case,[],data,None,True,True)
     assert result['stale'] and result['facts_changed']
+
+
+@pytest.mark.parametrize('status',['OPEN','REVIEW','APPROVED'])
+def test_missing_evidence_action_is_explained_before_approval(status):
+    case=SimpleNamespace(due_at=int(time.time())+3600,reason='INQUIRY',amount_cents=1000,currency='USD',draft='',status=status)
+    data={'observed_at':int(time.time()),'due_at':case.due_at,'reason':'INQUIRY','amount_cents':1000,'currency':'USD',
+          'provider_status':'WAITING_FOR_SELLER_RESPONSE','actions':['escalate']}
+    result=preparation(case,[],data,None,True,True)
+    assert 'not currently offering evidence submission' in result['next_step']
+    assert 'then approve' not in result['next_step']
