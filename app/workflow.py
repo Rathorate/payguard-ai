@@ -50,13 +50,14 @@ def observe(resource, identity, environment):
             'actions': sorted(actions)}
 
 
-def preparation(item, records, observation, analysis, demo, connected):
+def preparation(item, records, observation, analysis, demo, connected, approval_version=None):
     now = int(time.time())
     provider = observation
     stale = not provider or now - provider['observed_at'] > 300
     mismatch = bool(provider and any(provider[k] != getattr(item, k) for k in ('due_at', 'reason', 'amount_cents', 'currency')))
     citations = citation_report(item.draft, records)
     findings = analysis.get('findings', []) if analysis else []
+    locked = item.status in {'SUBMITTING', 'SUBMISSION_UNKNOWN', 'SUBMITTED', 'RESOLVED'}
     checks = []
     def add(label, state, detail, ids=None):
         checks.append({'label': label, 'state': state, 'detail': detail, 'evidence_ids': ids or []})
@@ -82,13 +83,16 @@ def preparation(item, records, observation, analysis, demo, connected):
             'No record of this type attached. Suggested preparation, not a PayPal requirement.', matches)
     add('AI evidence checks', 'REVIEW' if analysis else 'MISSING',
         f"{sum(f['category']=='MISSING' for f in findings)} gaps and {sum(f['category']=='CONFLICT' for f in findings)} conflicts flagged. Inspect the source-linked findings below." if analysis else
+        'No analysis for this lifecycle version. Consult retained review history and the approved export; checks cannot run on a locked response.' if locked else
         'Run evidence checks for the current saved version; findings still require human judgment.')
     add('Saved response citations', 'ATTENTION' if citations['unknown_ids'] or not item.draft else 'REVIEW',
         'Generate or save a response, then inspect its references.' if not item.draft else
         'Unknown references must be corrected.' if citations['unknown_ids'] else
         'Inspect each factual assertion. Valid reference IDs do not establish accuracy.')
-    add('Human approval', 'RECORDED' if item.status == 'APPROVED' else 'REVIEW',
+    add('Human approval', 'RECORDED' if item.status == 'APPROVED' or (locked and approval_version is not None) else 'REVIEW',
         'Current saved version approved by the merchant. Provider acceptance remains unverified.' if item.status == 'APPROVED' else
+        f'Merchant approval retained at version {approval_version}. Response is locked; this does not establish PayPal acceptance.' if locked and approval_version is not None else
+        'Response is locked. Inspect retained human review history; no approval record is established by this checklist.' if locked else
         'Read, correct and approve the exact saved response. AI never approves it.')
     if item.status in {'SUBMITTING', 'SUBMISSION_UNKNOWN'}:
         next_step = 'Reconcile the existing submission in PayPal. Do not retry an uncertain send.'

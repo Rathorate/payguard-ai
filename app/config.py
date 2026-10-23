@@ -20,6 +20,7 @@ class Settings:
     ai_provider: str = field(default_factory=lambda: os.getenv('AI_PROVIDER', 'auto').lower())
     groq_key: str = field(default_factory=lambda: os.getenv('GROQ_API_KEY', ''))
     groq_model: str = field(default_factory=lambda: os.getenv('GROQ_MODEL', 'openai/gpt-oss-20b'))
+    groq_schema_recovery: bool = field(default_factory=lambda: os.getenv('GROQ_SCHEMA_RECOVERY', 'false').lower() == 'true')
 
     @property
     def drafting_provider(self):

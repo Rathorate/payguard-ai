@@ -19,5 +19,7 @@ test('older cases and missing analyses have honest empty states; locked cases ca
   assert.ok(!html.includes('id="analyze-evidence"'));
   assert.ok(html.includes('No retained revisions yet'));
   assert.ok(html.includes('Nothing is approved'));
+  assert.ok(html.includes('Response is locked.'));
+  assert.ok(!html.includes('Run evidence checks to identify'));
   assert.ok(html.includes('Save or generate a draft'));
 });

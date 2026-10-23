@@ -114,6 +114,26 @@ def test_observation_age_and_fact_change():
     assert result['stale'] and result['facts_changed']
 
 
+def test_submitted_checklist_uses_actual_matching_approval_history(merchant,app):
+    case,url=imported(merchant,app)
+    draft=merchant.post(url+'/draft',json={'version':case['version']}).json()
+    approved=merchant.post(url+'/approve',json={'version':draft['version'],'reviewed':True}).json()
+    assert merchant.post(url+'/submit',json={'version':approved['version'],'confirmed':True},headers={'Idempotency-Key':'checklist-simulated'}).status_code==200
+    result=merchant.get(url+'/workflow').json()
+    checks={c['label']:c for c in result['checks']}
+    assert checks['Human approval']['state']=='RECORDED'
+    assert f"version {approved['version']}" in checks['Human approval']['detail']
+    assert 'locked' in checks['AI evidence checks']['detail']
+    assert 'simulated submission is not PayPal acceptance' in result['next_step']
+
+
+def test_locked_legacy_case_does_not_invent_approval_history():
+    case=SimpleNamespace(due_at=int(time.time())+3600,reason='INQUIRY',amount_cents=1000,currency='USD',draft='',status='SUBMITTED')
+    checks={c['label']:c for c in preparation(case,[],None,None,True,False)['checks']}
+    assert checks['Human approval']['state']=='REVIEW'
+    assert 'no approval record' in checks['Human approval']['detail']
+
+
 @pytest.mark.parametrize('status',['OPEN','REVIEW','APPROVED'])
 def test_missing_evidence_action_is_explained_before_approval(status):
     case=SimpleNamespace(due_at=int(time.time())+3600,reason='INQUIRY',amount_cents=1000,currency='USD',draft='',status=status)

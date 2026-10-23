@@ -159,6 +159,7 @@ def create_app(settings=None):
         response.set_cookie('pg_session', token, httponly=True, secure=settings.secure_cookies, samesite='strict', max_age=28800, path='/')
         return {'email': user.email, 'tenant_id': user.tenant_id, 'csrf': csrf, 'demo': settings.demo, 'sample_workspace': user.email.endswith('@demo.invalid')}
 
+    @app.head('/health/live', include_in_schema=False)
     @app.get('/health/live')
     def live():
         return {'status': 'ok'}
@@ -298,8 +299,12 @@ def create_app(settings=None):
         observation = {**json.loads(saved.report), 'observed_at': saved.observed_at} if saved else None
         analysis = db.scalar(select(EvidenceAnalysis).where(EvidenceAnalysis.tenant_id==tenant, EvidenceAnalysis.dispute_id==identity, EvidenceAnalysis.case_version==item.version))
         connected = bool(settings.paypal_environment=='sandbox' and settings.paypal_client_id and settings.paypal_secret and tenant==settings.paypal_tenant_id)
+        approval = db.scalar(select(DraftRevision).where(DraftRevision.tenant_id==tenant,
+            DraftRevision.dispute_id==identity, DraftRevision.case_version<=item.version,
+            DraftRevision.action=='APPROVED', DraftRevision.text==item.draft).order_by(DraftRevision.case_version.desc()).limit(1))
         return {'case_version': item.version, **preparation(item, evidence_for(db,tenant,identity), observation,
-                json.loads(analysis.report) if analysis else None, settings.demo, connected)}
+                json.loads(analysis.report) if analysis else None, settings.demo, connected,
+                approval_version=approval.case_version if approval else None)}
 
     @app.post('/api/v1/disputes/{identity}/workflow/refresh')
     def refresh_workflow(identity: str, body: Version, who=Depends(principal), db=Depends(db_session)):

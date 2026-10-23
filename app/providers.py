@@ -1,6 +1,7 @@
 """Small injectable adapters; no automatic retry of remote money-related writes."""
 import json
 import hashlib
+import logging
 import re
 import httpx
 
@@ -224,6 +225,16 @@ def generate_text(settings, instructions, payload, transport=None, *, response_s
         try:
             with httpx.Client(timeout=45, transport=transport) as client:
                 response = client.post('https://api.groq.com/openai/v1/chat/completions', headers={'Authorization': 'Bearer ' + settings.groq_key}, json=body)
+                if (settings.groq_schema_recovery and response.status_code == 400 and response_schema
+                        and body.get('response_format', {}).get('type') == 'json_schema'
+                        and groq_http_error(response).diagnostic['code'] == 'json_validate_failed'):
+                    # One opt-in recovery of a read-only generation, never a PayPal write.
+                    # Discard rejected output. Callers still validate all shape/source constraints.
+                    logging.getLogger(__name__).warning('Groq strict schema generation rejected; attempting one validated JSON-mode recovery')
+                    body = {**body, 'response_format': {'type': 'json_object'},
+                            'messages': [{'role': 'system', 'content': instructions + '\nReturn JSON matching this schema: ' + json.dumps(response_schema)},
+                                         {'role': 'user', 'content': payload}]}
+                    response = client.post('https://api.groq.com/openai/v1/chat/completions', headers={'Authorization': 'Bearer ' + settings.groq_key}, json=body)
                 response.raise_for_status()
                 choice = response.json()['choices'][0]
                 text = choice['message']['content']
