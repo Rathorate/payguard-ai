@@ -179,7 +179,7 @@ def generate_draft(settings, dispute, evidence, transport=None):
         'Describe gaps as facts not established by the supplied records, not documents the buyer is required to furnish. '
         'Do not call suggested documents mandatory or make a broad checklist of possible records. '
         'Attribute statements to the merchant record: a receipt recording payment is not independent confirmation that a customer was charged. '
-        'Do not request the buyer\'s whereabouts, location at delivery time, real-time location, or a new full personal address. '
+        'Do not request the buyer\'s whereabouts, presence at a delivery address, proof they were home, location at delivery time, real-time location, or a new full personal address. '
         'Prefer existing relevant merchant records, with personal details redacted, to collecting new personal information. '
         'For a general inquiry, do not assume a delivery or authorization complaint; identify the specific question as missing if absent. '
         'For unauthorized-payment disputes, payment alone does not establish buyer consent; identify the missing authorization evidence. '

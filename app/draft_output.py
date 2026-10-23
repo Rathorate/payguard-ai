@@ -1,5 +1,6 @@
 """Validate structured merchant paragraphs and render declared source references."""
 import json
+import re
 from .providers import ProviderError
 
 
@@ -49,6 +50,14 @@ def render_draft(raw, records):
         for gap in gaps:
             if not isinstance(gap, str) or not 5 <= len(gap.strip()) <= 400 or '[' in gap or ']' in gap:
                 raise ValueError('Invalid gap')
+            # Reject known unnecessary whereabouts requests. This narrow guard is
+            # not a semantic/privacy classifier; mandatory review remains necessary.
+            whereabouts = (
+                r"\b(?:buyer|customer|recipient)(?:['’]s|s)?\s+(?:(?:physical|real[- ]time)\s+)?(?:whereabouts|presence|location|geolocation|gps)\b",
+                r"\b(?:buyer|customer|recipient)\b.{0,30}\b(?:being|present)\b.{0,40}\b(?:delivery|address|home)\b",
+                r"\b(?:whereabouts|geolocation|gps coordinates)\b.{0,35}\b(?:buyer|customer|recipient)\b")
+            if any(re.search(pattern, gap, re.IGNORECASE) for pattern in whereabouts):
+                raise ProviderError('AI draft requested unnecessary buyer whereabouts; no draft was changed. Review existing merchant records instead.')
         if gaps:
             output.append('Evidence gaps:\n'+'\n'.join('- '+gap.strip() for gap in gaps))
         rendered = '\n\n'.join(output)
