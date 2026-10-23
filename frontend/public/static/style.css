@@ -20,3 +20,6 @@
 .readiness-list li>div{display:flex;justify-content:space-between;gap:12px;align-items:start;flex-wrap:wrap}
 .readiness-list p{margin:8px 0}
 @media(max-width:480px){.workflow-facts{grid-template-columns:1fr}.workflow-panel .section-top{align-items:stretch;flex-direction:column}}
+
+/* Keep account switching reachable on phones and narrow embedded browsers. */
+@media(max-width:800px){.sidebar .profile{display:flex;padding:8px 0 0;margin-top:10px}.sidebar .profile button{min-width:44px;min-height:44px}}
