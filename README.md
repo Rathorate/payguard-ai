@@ -2,19 +2,21 @@
 
 Licensed under [MIT](LICENSE), copyright 2026 Rathorate.
 
+**Try the hosted demo:** https://payguard-ai-frontend.vercel.app — choose **Open interactive demo** for isolated synthetic cases. [Judge guide and verified limits](docs/JUDGE_GUIDE.md). Backend: https://payguard-ai-ih99.onrender.com.
+
 [Evidence review and human decisions](docs/EVIDENCE_REVIEW.md): AI gap/conflict checks with exact source excerpts, inspectable draft citations, retained generation/edit/approval history, and a four-scenario synthetic AI evaluation script. These assist human judgment; they do not establish delivery or predict outcomes.
 
 New: a next-action panel shows recorded PayPal stage, deadline and available actions, plus a source-linked evidence checklist. Read-only refresh preserves merchant evidence and approval; real sends recheck provider permissions and case facts. See [workflow details](docs/CASE_WORKFLOW.md).
 
 See [PayPal sandbox setup](docs/PAYPAL_SANDBOX.md) for credentials, workspace mapping, real sandbox reads and safe simulated submission.
 
-For the local hackathon workflow, Groq setup, review/approval checks and PayPal-free demonstration, see [HACKATHON.md](docs/HACKATHON.md). The frontend and backend remain independently deployable; this rehearsal stays local.
+For the local hackathon workflow, Groq setup, review/approval checks and PayPal-free demonstration, see [HACKATHON.md](docs/HACKATHON.md). Frontend and backend are deployed separately on Vercel and Render, with a dedicated Neon database.
 
 See [readiness and remaining gaps](docs/READINESS.md) for the verified human review flow, real Groq rehearsal, current limits and the work needed before public deployment or real PayPal submission.
 
 A hackathon MVP for merchant dispute operations: accounts, demo fixtures, searchable dispute inbox, evidence text/PDF import, template or optional AI drafting, merchant review, simulated/PayPal submission and audit history.
 
-**Status:** tested MVP with production-oriented controls. Provider acceptance, cloud deployment and scale still require validation. Recorded merchant evidence is not independently carrier-verified.
+**Status:** hosted hackathon MVP. Actual sandbox authentication/import, Groq Q&A/drafting/analysis, human approval, approved export and simulated submission have been exercised. Real evidence submission/acceptance and scale remain unverified. Recorded merchant evidence is not independently carrier-verified. [Reliability and monitoring](docs/RELIABILITY_AND_MONITORING.md).
 
 ## Separate frontend and backend
 

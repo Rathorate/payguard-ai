@@ -14,7 +14,7 @@ def no_real_quota_wait(monkeypatch):
 
 def test_synthetic_evaluation_retains_failures_and_pending_human_assessment(tmp_path,monkeypatch):
     output=tmp_path/'report.json';seen=[]
-    monkeypatch.setattr(evaluate_ai,'Settings',lambda:Settings(ai_provider='groq',groq_key='test'))
+    monkeypatch.setattr(evaluate_ai,'Settings',lambda:Settings(ai_provider='groq',groq_key='test',groq_schema_recovery=True))
     def draft(settings,case,records):
         seen.append(case.paypal_id)
         return 'Synthetic merchant response ['+records[0].id+'].','GROQ'
@@ -29,6 +29,8 @@ def test_synthetic_evaluation_retains_failures_and_pending_human_assessment(tmp_
     report=json.loads(output.read_text())
     assert len(seen)==4 and all(s.startswith('SYNTHETIC-') for s in seen)
     assert len(report['results'])==4
+    assert report['task_invocations']==report['ai_calls'] and report['schema_recovery_enabled']
+    assert report['maximum_provider_requests']==report['task_invocations']*2
     assert all(r['human_pass'] is None for r in report['results'])
     assert report['results'][-1]['mechanical_checks_passed'] is False
     assert report['results'][0]['mechanical_checks_passed'] is True

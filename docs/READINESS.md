@@ -1,5 +1,10 @@
 # PayGuard readiness and remaining gaps
 
+# Current hosted status — 23 October 2026
+
+See [JUDGE_GUIDE.md](JUDGE_GUIDE.md) for current deployment, verified workflow and remaining limits. Earlier entries below record the development sequence and may describe checks that were pending at that time.
+
+
 ## Current hackathon status
 
 The core local demonstration is working: synthetic cases, evidence entry/text PDF import, a real Groq-generated case response, merchant edits, explicit review and approval, withdrawal/reapproval, approved JSON export, and clearly simulated PayPal submission.
@@ -51,3 +56,4 @@ The user completed a sandbox purchase and created dispute PP-R-SLL-10194090. Act
 Each case now exposes a deterministic next-action panel and source-linked checklist. Read-only provider observations are stored separately from evidence; refreshing never changes draft, case version or human approval. Provider fact changes are warnings and block a real send until reconciled. Available action names require matching official HTTPS action links; the server never follows arbitrary provider URLs. Five-minute staleness is visible. Demo cases have honest local-only states.
 
 This is an incremental preparation feature, not automatic synchronization, a carrier-verification service or a completeness assessment. Other PayPal actions remain informational. Existing demo databases gain the additive table at startup. Existing non-demo databases need migration 003 before the new API starts.
+

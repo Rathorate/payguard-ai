@@ -33,7 +33,8 @@ def main():
             sleep(args.pause_seconds)
         call_count+=1
         return function(*values)
-    print(f'Running {len(cases)} synthetic cases (up to {len(cases)*2} AI calls). No customer data, approval or PayPal requests.',flush=True)
+    maximum_requests=len(cases)*2*(2 if settings.drafting_provider=='groq' and settings.groq_schema_recovery else 1)
+    print(f'Running {len(cases)} synthetic cases (up to {len(cases)*2} AI tasks, at most {maximum_requests} provider requests including enabled recovery). No customer data, approval or PayPal requests.',flush=True)
     for case in cases:
         start=perf_counter()
         item=SimpleNamespace(paypal_id='SYNTHETIC-'+case['name'],**{k:case[k] for k in ('reason','amount_cents','currency')})
@@ -78,7 +79,11 @@ def main():
     output.parent.mkdir(parents=True,exist_ok=True)
     output.write_text(json.dumps({'notice':'Synthetic evaluation only. Exact excerpts and known references do not establish factual entailment. Human ratings are pending.',
         'evaluation_scope':'single_scenario' if args.case else 'full_suite',
-        'ai_calls':call_count,'pause_seconds':args.pause_seconds,
+        'ai_calls':call_count,'task_invocations':call_count,
+        'call_count_notice':'ai_calls is the legacy task count, not an observed provider-request count.',
+        'schema_recovery_enabled':settings.groq_schema_recovery,
+        'maximum_provider_requests':call_count*(2 if settings.drafting_provider=='groq' and settings.groq_schema_recovery else 1),
+        'pause_seconds':args.pause_seconds,
         'provider':settings.drafting_provider,'model':settings.ai_status()['ai_model'],'results':results},indent=2)+'\n')
     print('Saved '+str(output)+'. Review each human checklist; no accuracy or time-saving claim has been calculated.')
     if not all(r['mechanical_checks_passed'] for r in results):

@@ -1,6 +1,6 @@
 # Separate frontend and backend deployments
 
-The user selected free-first hosting on 22 October 2026. See [the prepared free hosting plan](FREE_HOSTING_PLAN.md) for Vercel + Render Free + a proposed separate Neon Free database, cold-start/quota limits and deliberate manual PayPal refresh. No cloud resources have been created for this plan.
+Deployed on 23 October 2026: Vercel frontend + Render Free backend + a separate Neon database. See [the current judge guide](JUDGE_GUIDE.md) for live URLs and verified limits, and [reliability and monitoring](RELIABILITY_AND_MONITORING.md) for free-plan quotas and manual PayPal refresh.
 
 Deploy the same repository as two independently updated projects:
 
