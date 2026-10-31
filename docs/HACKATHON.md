@@ -48,8 +48,8 @@ Approval covers one saved case version. Adding evidence, saving edits or regener
 
 Use the labeled simulation and reviewed packet for the hackathon. Demo mode cannot make real PayPal submissions, even if credentials are accidentally configured. It does not fake webhook verification, provider acceptance or a dispute win. A merchant with a real dispute can separately prepare appropriate material for their own manual provider workflow; uploading this JSON is not claimed to be supported by PayPal.
 
-Real PayPal integration remains an adapter behind the same review gate and needs account-specific sandbox validation when credentials become available. Groq credentials alone do not enable it.
+Actual sandbox OAuth and dispute read/import have now been verified in the hosted merchant workspace. See [judge guide](JUDGE_GUIDE.md) and [sandbox instructions](PAYPAL_SANDBOX.md). A sample workspace is intentionally isolated from that connection. Real evidence submission/acceptance, external webhook delivery and broader account onboarding remain unverified. Keep DEMO_MODE=true; Groq credentials alone do not enable PayPal.
 
 ## Verification limits
 
-Automated adapter tests use mocked Groq/PayPal responses, including malformed responses, truncation, authentication failures, rate limits and timeouts. A real Groq request and evaluation of its factual quality still require your local key. PostgreSQL checks require a disposable `TEST_POSTGRES_URL`; CI provisions one. Passing tests do not establish unlimited scale or the absence of every possible bug.
+Automated adapter tests use mocked Groq/PayPal responses, including malformed responses, truncation, authentication failures, rate limits and timeouts. Actual hosted Groq analysis, Q&A and drafting have been exercised using the backend's private key. The four-case synthetic evaluation mechanically passed; human quality ratings remain pending. Reproduction requires your own backend key. No accuracy or dispute-win metric has been established. PostgreSQL checks require a disposable `TEST_POSTGRES_URL`; CI provisions one. Passing tests do not establish unlimited scale or the absence of every possible bug.

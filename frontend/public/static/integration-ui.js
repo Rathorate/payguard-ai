@@ -1,3 +1,17 @@
+export function clearIntegrationSettings(root = document) {
+  for (const id of ['integration-cards', 'paypal-workspace', 'paypal-feedback', 'paypal-import-feedback']) {
+    root.querySelector('#' + id).textContent = '';
+  }
+  root.querySelector('#paypal-setup-controls').hidden = true;
+  root.querySelector('#paypal-connection-notice').textContent = 'Loading this workspace’s integration settings…';
+}
+
+export async function loadIntegrationSettings(read, root, isCurrent) {
+  clearIntegrationSettings(root);
+  const data = await read();
+  return isCurrent() ? data : null;
+}
+
 export function paypalPresentation(data, user) {
   if (user.sample_workspace) return {
     label: 'Sample workspace', configured: false, showSetup: false,

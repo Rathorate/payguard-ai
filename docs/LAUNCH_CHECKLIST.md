@@ -20,8 +20,8 @@ Updated 31 October 2026. Historical development notes are in [VERIFICATION.md](V
 ## Final rehearsal and personal review
 
 - [ ] Personally review the current recording-case draft against its synthetic sources, correct it and approve the exact saved version.
-- [ ] Download the approved packet and complete clearly simulated submission with DEMO_MODE=true.
-- [ ] Complete human quality checklists for receipt-only, conflicting-delivery, authorization-missing and untrusted-instructions scenarios.
+- [x] At the user's request, the assistant exercised approval, downloaded the packet, verified its checksum/version and completed simulated submission on the fictional recording case. This is a workflow test, not the owner's personal rating.
+- [ ] Before making quantitative AI-quality claims, complete human ratings for receipt-only, conflicting-delivery, authorization-missing and untrusted-instructions scenarios. No such claim is currently made.
 - [ ] Check recording audio/readability and that no credentials or private customer records appear.
 - [ ] Keep public demo access and local setup available throughout judging.
 
@@ -38,3 +38,7 @@ The imported PayPal case and synthetic recording case must remain separate. The 
 ## Deferred provider and production work
 
 Actual PayPal evidence acceptance, external signed webhook delivery/worker processing, broad multi-merchant onboarding, account recovery, OCR, independent carrier verification, backup restoration and load capacity remain follow-up work. Keep DEMO_MODE=true. Do not claim automatic synchronization, provider acceptance, a won dispute or an uptime SLA.
+
+## Latest rehearsal additions
+
+See [RECORDING_REHEARSAL.md](RECORDING_REHEARSAL.md). Three new synthetic review cases remain unapproved, alongside the completed simulation and separate imported inquiry. Credential-free public access was checked by signing out and opening a fresh sample workspace; it loaded four cases and hid merchant import controls. The merchant session was then restored with all five saved cases. The account-switch cleanup clears stale integration details before loading a different workspace; 16 frontend regressions pass locally.

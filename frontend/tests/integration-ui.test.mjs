@@ -1,6 +1,31 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {paypalPresentation} from '../public/static/integration-ui.js';
+import {paypalPresentation,loadIntegrationSettings} from '../public/static/integration-ui.js';
+
+function previousAccountView() {
+  const elements = Object.fromEntries(['integration-cards','paypal-workspace','paypal-feedback','paypal-import-feedback','paypal-setup-controls','paypal-connection-notice'].map(id => ['#'+id,{textContent:'previous merchant details',hidden:false}]));
+  return {elements, querySelector: id => elements[id]};
+}
+
+test('loading another account clears previous merchant details and hides controls immediately', async () => {
+  const root=previousAccountView();
+  let resolve;
+  const pending=loadIntegrationSettings(()=>new Promise(done=>{resolve=done;}),root,()=>true);
+  for (const id of ['integration-cards','paypal-workspace','paypal-feedback','paypal-import-feedback']) assert.equal(root.elements['#'+id].textContent,'');
+  assert.equal(root.elements['#paypal-setup-controls'].hidden,true);
+  resolve({paypal_status:'workspace_unlinked'});
+  assert.deepEqual(await pending,{paypal_status:'workspace_unlinked'});
+});
+
+test('a delayed response from a departed account cannot repopulate the current view', async () => {
+  const root=previousAccountView();
+  let resolve, current=true;
+  const pending=loadIntegrationSettings(()=>new Promise(done=>{resolve=done;}),root,()=>current);
+  current=false;
+  resolve({paypal_configured:true});
+  assert.equal(await pending,null);
+  assert.equal(root.elements['#integration-cards'].textContent,'');
+});
 
 test('sample users receive account guidance without merchant setup controls', () => {
   const view = paypalPresentation({paypal_configured:true}, {sample_workspace:true});

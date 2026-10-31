@@ -1,7 +1,7 @@
 import {renderWorkflow} from './workflow-ui.js';
 import {renderReview, revealEvidence} from './review-ui.js';
 import {questionPanel,renderConversation} from './questions-ui.js';
-import {paypalPresentation} from './integration-ui.js';
+import {paypalPresentation,clearIntegrationSettings,loadIntegrationSettings} from './integration-ui.js';
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const state = {csrf: '', user: null, demo: false, status: '', page: 1, q: '', detail: null, view: 'disputes', loadId: 0, ai: null};
@@ -66,6 +66,8 @@ async function busy(button, task) {
 
 async function enter(user) {
   caseConversations.clear();
+  $('#auth-form').reset();
+  clearIntegrationSettings();
   state.user = user; state.csrf = user.csrf; state.demo = user.demo;
   state.q='';state.status='';state.page=1;state.view='disputes';state.detail=null;state.ai=null;
   $('#search').value='';$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.status===''));
@@ -96,7 +98,7 @@ $('#auth-form').addEventListener('submit', async event => {
   });
 });
 $('#demo-login').addEventListener('click', event => busy(event.currentTarget, async () => enter(await api('/auth/demo', {method:'POST'}))));
-$('#logout').addEventListener('click', event => busy(event.currentTarget, async () => {await api('/auth/logout', {method:'POST'}); caseConversations.clear();state.user = null; state.csrf = ''; $('#workspace').hidden = true; $('#login-view').hidden = false;}));
+$('#logout').addEventListener('click', event => busy(event.currentTarget, async () => {await api('/auth/logout', {method:'POST'}); caseConversations.clear();clearIntegrationSettings();$('#auth-form').reset();state.user = null; state.csrf = ''; $('#workspace').hidden = true; $('#login-view').hidden = false;}));
 
 async function loadView() {
   const views = ['disputes', 'audit', 'integrations'];
@@ -111,7 +113,9 @@ async function loadView() {
     const data = await api('/audit');
     $('#audit-list').innerHTML = data.items.length ? data.items.map(x => `<div class="audit-row"><div>${escape(x.action.replaceAll('_',' ').toLowerCase())}<small>${escape(x.actor)} · ${escape(x.resource_id)}</small></div><time>${escape(new Date(x.created_at*1000).toLocaleString())}</time></div>`).join('') : '<div class="empty">Your workspace activity will appear here.</div>';
   } else {
-    const data = await api('/integrations');
+    const tenant = state.user.tenant_id;
+    const data = await loadIntegrationSettings(() => api('/integrations'), document, () => state.view === 'integrations' && state.user?.tenant_id === tenant);
+    if (!data) return;
     const paypal = paypalPresentation(data, state.user);
     $('#paypal-connection-notice').textContent=paypal.message;
     $('#paypal-setup-controls').hidden=!paypal.showSetup;

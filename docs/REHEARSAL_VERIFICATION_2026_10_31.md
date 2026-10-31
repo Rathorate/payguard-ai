@@ -1,0 +1,14 @@
+# Hosted rehearsal verification — 31 October 2026
+
+- Public source and MIT license confirmed.
+- Isolated synthetic recording case: PP-D-DEMO-VIDEO-1031. Two fictional conflicting records added; actual Groq analysis and Q&A exercised. Initial analysis omitted the independent-proof gap; Q&A and refreshed version-5 analysis identified it.
+- Assistant corrected the draft under owner authorization, preserving source references and leaving the disagreement unresolved. At the user's subsequent explicit request the assistant tested review acknowledgement, approval, export and simulation. This is not an independent human rating.
+- Approved packet case/review version 6 matched. SHA-256 was recomputed from sorted JSON without the sha256 field and matched. Simulated submission succeeded and locked the case at lifecycle version 8. No PayPal submission or escalation occurred.
+- Added PP-D-DEMO-RECEIPT-1031, PP-D-DEMO-AUTH-1031 and PP-D-DEMO-INQUIRY-1031. All have fictional evidence and retained Groq drafts and remain unapproved. Receipt analysis identifies absent delivery proof; authorization analysis identifies absent consent/logs.
+- Inquiry drafting introduced an unsupported payment-receipt assertion from the case amount. It was corrected before approval, at saved version 4. Its earlier analysis also incorrectly said the specific customer question was missing despite a recorded question. That semantic failure is not represented as passing quality; the current draft stays unapproved and the earlier analysis is not attached to the corrected version. Human judgment remains necessary.
+- Public access tested by signing out and choosing Open interactive demo: four synthetic cases loaded; sample integration guidance appeared and merchant import controls were hidden. Restored merchant sign-in: all five merchant cases persisted. This used the ordinary signed-out flow, not a separate incognito context.
+- No captured browser error/warning entries at the analysis checkpoint. This is not proof of absence of all possible errors.
+- Found prior integration details briefly visible while another workspace's request loaded. Fixed by clearing cards, tenant ID and feedback and hiding setup controls before the request; late responses from a departed account/view are discarded. Authentication forms reset on entry/logout.
+- Local verification after this display fix: 16 frontend tests passed, deployment asset check and app.js syntax check passed. Backend code is unchanged; release a2d8a31 previously passed 232 main-suite tests plus two dedicated PostgreSQL tests. Check GitHub Actions for this release's complete result.
+
+Formal human quality ratings, real PayPal evidence acceptance, always-on free hosting, measured performance at scale and quantitative outcome claims remain unverified. Do not publish the approved packet as real dispute evidence.
