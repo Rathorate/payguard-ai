@@ -1,10 +1,11 @@
 import {renderWorkflow} from './workflow-ui.js';
 import {renderReview, revealEvidence} from './review-ui.js';
 import {questionPanel,renderConversation} from './questions-ui.js';
-import {paypalPresentation,clearIntegrationSettings,loadIntegrationSettings} from './integration-ui.js';
+import {paypalPresentation,clearIntegrationSettings,loadIntegrationSettings,publicDemoAvailable} from './integration-ui.js';
+import {caseChatPicker} from './case-chat-ui.js';
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
-const state = {csrf: '', user: null, demo: false, status: '', page: 1, q: '', detail: null, view: 'disputes', loadId: 0, ai: null};
+const state = {csrf: '', user: null, demo: false, publicDemo: false, status: '', page: 1, q: '', detail: null, view: 'disputes', loadId: 0, ai: null};
 const labels = {OPEN: 'Needs evidence', REVIEW: 'In review', APPROVED: 'Ready to send', SUBMITTED: 'Submitted', RESOLVED: 'Resolved', SUBMITTING: 'Sending', SUBMISSION_UNKNOWN: 'Needs reconciliation'};
 const reasons = {MERCHANDISE_OR_SERVICE_NOT_RECEIVED: 'Item not received', MERCHANDISE_OR_SERVICE_NOT_AS_DESCRIBED: 'Not as described', UNAUTHORIZED_TRANSACTION: 'Unauthorized transaction', UNAUTHORISED: 'Unauthorized transaction', NOT_RECOGNISED: 'Not recognized', NOT_RECOGNIZED: 'Not recognized', INQUIRY: 'Customer inquiry'};
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -73,7 +74,7 @@ async function enter(user) {
   $('#search').value='';$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.status===''));
   $('#login-view').hidden = true; $('#workspace').hidden = false;
   $('#profile-label').textContent = user.sample_workspace ? 'Sample workspace' : user.email;
-  $('#mode-badge').textContent = user.demo ? 'Demo · simulated submissions' : 'Merchant workspace';
+  $('#mode-badge').textContent = user.demo ? 'Simulated submissions' : 'Merchant workspace';
   await loadView();
 }
 
@@ -135,11 +136,16 @@ async function loadCases() {
   const [data, overview, integration] = await Promise.all([api('/disputes?' + new URLSearchParams({q:state.q,status:state.status,page:state.page,limit:10})),api('/overview'),api('/integrations')]);
   if (loadId !== state.loadId) return;
   state.ai=integration;
+  const picker=caseChatPicker(data.items,$('#ai-case-picker').value);
+  $('#ai-case-picker').innerHTML=picker.options;
+  $('#ai-case-picker').disabled=picker.empty;
+  $('#open-case-chat').disabled=picker.empty || !integration.ai_configured;
+  $('#case-chat-hint').textContent=picker.empty ? 'Add or import a case to ask questions about its evidence.' : (!integration.ai_configured ? 'Configure an AI provider to use case chat.' : 'Choose a case from this page. Answers use that case’s saved evidence and cannot approve or submit it.');
   $('#ai-provider-label').textContent=integration.ai_configured ? `${integration.ai_provider.toUpperCase()} · ${integration.ai_model}` : 'AI is not enabled · offline templates available';
   $('#ai-status').textContent=integration.ai_message || 'Restart your backend after changing its AI environment settings.';
   const groups = overview.groups;
   const count = groups.reduce((sum,g)=>sum+g.count,0);
-  $('#seed-cases').hidden=!state.demo || count>0;
+  $('#seed-cases').hidden=!state.publicDemo || count>0;
   const openGroups = groups.filter(g=>!['SUBMITTED','RESOLVED'].includes(g.status));
   const atRisk = Object.entries(openGroups.reduce((totals,g)=>({...totals,[g.currency]:(totals[g.currency]||0)+g.amount_cents}),{})).map(([c,a])=>money(a,c));
   const stats = [
@@ -183,6 +189,12 @@ $('#paypal-import-form').addEventListener('submit',event=>{
   });
 });
 $('#seed-cases').addEventListener('click',event=>busy(event.currentTarget,async()=>{await api('/demo/seed',{method:'POST'});state.q='';state.status='';state.page=1;$('#search').value='';$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.status===''));await loadCases();toast('Four synthetic cases loaded. Open a case to try AI drafting and human review.');}));
+$('#open-case-chat').addEventListener('click',event=>busy(event.currentTarget,async()=>{
+  const id=$('#ai-case-picker').value;
+  if(!id)return;
+  await openCase(id);
+  if(state.detail?.id===id){$('#question-form').scrollIntoView({block:'center'});$('#case-question').focus({preventScroll:true});}
+}));
 $('#check-ai').addEventListener('click',event=>busy(event.currentTarget,async()=>{
   $('#ai-feedback').textContent='Testing with synthetic text. This can take up to 45 seconds…';
   try {const result=await api('/integrations/ai/check',{method:'POST'});$('#ai-feedback').textContent=`${result.provider} connection verified (${result.model}). ${result.notice}\n\n${result.sample_draft}`;}
@@ -298,6 +310,6 @@ $('#new-form').addEventListener('submit',event=>{event.preventDefault();busy($('
 });});
 
 try {
-  const config=await api('/config');$('#demo-option').hidden=!config.demo;
+  const config=await api('/config');state.publicDemo=publicDemoAvailable(config);$('#demo-option').hidden=!state.publicDemo;
   try {await enter(await api('/auth/me'));} catch(error) {if(error.message!=='Sign in required')toast(error.message);}
 } catch(error) {$('#auth-error').textContent='Unable to reach the server. '+error.message;}

@@ -134,7 +134,10 @@ def create_app(settings=None):
             origin_check(request)
             if not hmac.compare_digest(request.headers.get('x-csrf-token', ''), login.csrf):
                 raise HTTPException(403, 'Invalid CSRF token')
-        return db.get(User, login.user_id), login
+        user = db.get(User, login.user_id)
+        if not user or (user.email.endswith('@demo.invalid') and not settings.public_demo_enabled):
+            raise HTTPException(401, 'Sign in required')
+        return user, login
 
     def rate_limit(db, key, maximum, window=60):
         now = int(time.time())
@@ -171,7 +174,7 @@ def create_app(settings=None):
 
     @app.get('/api/v1/config')
     def config():
-        return {'demo': settings.demo, 'paypal_environment': settings.paypal_environment}
+        return {'demo': settings.demo, 'public_demo_enabled': settings.demo and settings.public_demo_enabled, 'paypal_environment': settings.paypal_environment}
 
     @app.post('/api/v1/auth/register', status_code=201)
     def register(body: Registration, request: Request, response: Response, db=Depends(db_session)):
@@ -205,7 +208,7 @@ def create_app(settings=None):
 
     @app.post('/api/v1/auth/demo')
     def demo(request: Request, response: Response, db=Depends(db_session)):
-        if not settings.demo:
+        if not settings.demo or not settings.public_demo_enabled:
             raise HTTPException(404, 'Not found')
         origin_check(request)
         rate_limit(db, 'demo:' + request.client.host, 10, 600)
@@ -225,7 +228,7 @@ def create_app(settings=None):
 
     @app.post('/api/v1/demo/seed')
     def seed_empty_workspace(who=Depends(principal), db=Depends(db_session)):
-        if not settings.demo:
+        if not settings.demo or not settings.public_demo_enabled:
             raise HTTPException(404, 'Not found')
         tenant = who[0].tenant_id
         db.scalar(select(Tenant).where(Tenant.id == tenant).with_for_update())

@@ -1,5 +1,6 @@
 """Read-only, case-scoped questions with exact source excerpts."""
 import json
+import logging
 from .providers import ProviderError, generate_text
 from .review import validate_analysis
 
@@ -59,6 +60,20 @@ def answer_question(settings, dispute, records, question, history, transport=Non
         case['saved_draft']=dispute.draft
     payload = json.dumps({'question': question, 'conversation': history,
         'case':case,
-        'source_passages':passages})
-    text, source = generate_text(settings, instructions, payload, transport, response_schema=question_schema(passages))
-    return resolve_answer(text,passages,records), source
+        'source_passages':[{k:v for k,v in passage.items() if k!='evidence_id'} for passage in passages]})
+    for attempt in range(2):
+        prompt = instructions
+        if attempt:
+            prompt += (' A previous response failed structural/source validation. Generate a fresh answer from the supplied evidence only. '
+                       'Return one to six findings and use only these exact source_refs: '+', '.join(p['ref'] for p in passages)+
+                       '. Do not repeat a ref within one finding. MISSING may use an empty source_refs array. '
+                       'Do not invent IDs, quotes, keys or actions.')
+        # Provider failures (including quotas/timeouts) escape without a retry.
+        # Only an invalid, completed read-only answer gets one fresh attempt.
+        text, source = generate_text(settings, prompt, payload, transport, response_schema=question_schema(passages))
+        try:
+            return resolve_answer(text,passages,records), source
+        except ProviderError:
+            if attempt:
+                raise
+            logging.getLogger(__name__).warning('Case answer failed validation; requesting one fresh source-constrained answer')

@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {paypalPresentation,loadIntegrationSettings} from '../public/static/integration-ui.js';
+import {paypalPresentation,loadIntegrationSettings,publicDemoAvailable} from '../public/static/integration-ui.js';
+
+test('simulated submissions do not enable guest entry without an explicit opt-in', () => {
+  for (const config of [{demo:true}, {demo:true,public_demo_enabled:false}, {demo:false,public_demo_enabled:true}]) assert.equal(publicDemoAvailable(config),false);
+  assert.equal(publicDemoAvailable({demo:true,public_demo_enabled:true}),true);
+});
 
 function previousAccountView() {
   const elements = Object.fromEntries(['integration-cards','paypal-workspace','paypal-feedback','paypal-import-feedback','paypal-setup-controls','paypal-connection-notice'].map(id => ['#'+id,{textContent:'previous merchant details',hidden:false}]));

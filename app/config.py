@@ -8,6 +8,7 @@ from urllib.parse import urlsplit
 class Settings:
     database_url: str = field(default_factory=lambda: os.getenv('DATABASE_URL', 'sqlite:///./payguard.db'))
     demo: bool = field(default_factory=lambda: os.getenv('DEMO_MODE', 'true').lower() == 'true')
+    public_demo_enabled: bool = field(default_factory=lambda: os.getenv('PUBLIC_DEMO_ENABLED', 'false').lower() == 'true')
     secure_cookies: bool = field(default_factory=lambda: os.getenv('SECURE_COOKIES', 'false').lower() == 'true')
     origin: str = field(default_factory=lambda: os.getenv('APP_ORIGIN', 'http://127.0.0.1:3000'))
     paypal_environment: str = field(default_factory=lambda: os.getenv('PAYPAL_ENVIRONMENT', 'sandbox'))

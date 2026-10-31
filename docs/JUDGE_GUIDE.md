@@ -8,23 +8,25 @@ Frontend: https://payguard-ai-frontend.vercel.app
 Backend: https://payguard-ai-ih99.onrender.com
 Source and MIT license: https://github.com/Rathorate/payguard-ai
 
-## Try it without credentials
+## Try it with a merchant account
 
-1. Open the frontend and choose **Open interactive demo**. A separate sample workspace contains four synthetic cases. No personal PayPal account or payment is needed.
-2. Open a case. Inspect its recorded evidence and evidence preparation checklist.
-3. Choose **Check evidence with AI**. Inspect linked excerpts and missing/conflicting facts. A source link establishes recorded text, not truth.
-4. Ask a question such as "Does this receipt prove delivery?" AI answers cannot edit, approve or submit the case.
-5. Generate a draft. Inspect citations, correct statements, save edits, then personally review the exact saved version before approving it. Adding evidence or editing the draft invalidates earlier approval.
-6. Download the approved JSON packet. It contains the saved version, evidence, review history and a checksum. It is not a PayPal receipt or acceptance notification.
-7. Confirm **Simulate submission**. The response locks and the audit log records the simulation. Nothing is sent to PayPal.
+Guest access and the preset four-case loader are disabled on the hosted app. No existing owner's credentials are shared.
 
-An unconfirmed approval/submission is blocked. Failed AI generations preserve saved drafts/reports. Groq calls can hit quotas or fail even with bounded recovery; the UI reports failures explicitly. Do not supply private customer evidence in the public demo. Refreshing a page clears temporary Q&A conversation, while saved case data persists in PostgreSQL.
+1. Open the frontend and select **New here? Create a workspace**, or sign in with your own PayGuard account.
+2. A new account starts empty. Choose **Add dispute**, enter a fictional ID such as PP-D-JUDGE-RECEIPT, a customer named Synthetic judge fixture, USD 10, and a future test deadline.
+3. Open the case and add an INVOICE record titled SYNTHETIC receipt only with text: "SYNTHETIC TEST: Merchant receipt records payment of 10.00 USD. No shipping or delivery record is provided. Never submit fictional evidence to PayPal."
+4. Run evidence checks. From the dashboard you can also select the case in **Case for AI chat** and click **Ask AI**. Ask "Does this receipt prove delivery?" Inspect source excerpts; citations establish recorded text, not truth.
+5. Generate a draft, inspect citations, correct statements and save edits. Personally review the saved version before approving. Evidence/draft changes invalidate prior approval.
+6. Download the approved JSON packet. It includes the saved version, evidence, review history and checksum; it is not PayPal acceptance.
+7. Confirm **Simulate submission**. The response locks and audit records the simulation. Nothing is sent to PayPal.
+
+An unconfirmed approval/submission is blocked. Failed generations preserve saved drafts/reports. Invalid completed Q&A output gets at most one fresh source-constrained answer attempt; source validation remains enforced and provider/quota errors are not automatically retried by that mechanism. Existing provider JSON-schema recovery may also apply. No perfect reliability or factual-accuracy claim is made. Use only synthetic data for judging. Q&A conversation clears on reload/version changes; saved cases persist.
 
 ## Actual PayPal versus simulation
 
 The owner connected a matching seller sandbox app and imported the actual $10 test dispute PP-R-SLL-10194090 through PayPal's API. Read-only refresh recorded Inquiry / Waiting for seller response and an escalate action. PayPal did not offer provide-evidence for this case. No escalation or evidence submission was performed. These are actual sandbox reads, not production payment operations. The demo submission is deliberately simulated and must not be represented as PayPal acceptance.
 
-The public sample workspace is isolated from the owner's connected merchant workspace. One merchant workspace per deployment is supported. Credentials remain server-side. Judges can test the complete synthetic workflow without being given the owner's credentials. To reproduce actual sandbox reads independently, follow PAYPAL_SANDBOX.md with your own seller app, matching case and workspace mapping.
+Guest sample sessions are disabled. Merchant workspaces are tenant-scoped, and one merchant workspace per deployment is linked to the configured PayPal seller. A new account does not inherit that seller connection. Credentials remain server-side. To reproduce actual sandbox reads, follow PAYPAL_SANDBOX.md with your own matching seller app, case and deliberately configured workspace mapping. The owner's sandbox import is demonstrated in the video and recorded verification.
 
 ## Stack and AI role
 
@@ -36,7 +38,7 @@ The public sample workspace is isolated from the owner's connected merchant work
 
 ## Evidence and remaining limits
 
-Release a2d8a31 passed [GitHub Actions 41193870893](https://github.com/Rathorate/payguard-ai/actions/runs/41193870893). The main Python run passed 232 tests with two PostgreSQL-only skips; the dedicated PostgreSQL step passed both tests, for 234 passing Python checks overall. All 14 frontend tests passed for that release. The subsequent account-switch cleanup adds two regressions, bringing the frontend suite to 16 tests; consult [latest CI](https://github.com/Rathorate/payguard-ai/actions) for release status. Hosted verification includes sandbox authentication/import, valid PDF extraction, malformed PDF rejection, saved AI analysis, approved packet checksum verification, guarded simulation and persistence after reload/redeploy. Test coverage does not establish perfect accuracy or uptime.
+Release a2d8a31 passed [GitHub Actions 41193870893](https://github.com/Rathorate/payguard-ai/actions/runs/41193870893). The main Python run passed 232 tests with two PostgreSQL-only skips; the dedicated PostgreSQL step passed both tests, for 234 passing Python checks overall. All 14 frontend tests passed for that release. The subsequent account-switch cleanup adds two regressions, with the subsequent dashboard-chat and guest-access changes bringing the frontend suite to 20 tests; consult [latest CI](https://github.com/Rathorate/payguard-ai/actions) for release status. Hosted verification includes sandbox authentication/import, valid PDF extraction, malformed PDF rejection, saved AI analysis, approved packet checksum verification, guarded simulation and persistence after reload/redeploy. Test coverage does not establish perfect accuracy or uptime.
 
 UptimeRobot checks the database-free /health/live endpoint every five minutes. HEAD support and an Up status were verified when the monitor was configured on October 23; this is not a live status report. Render Free shares 750 running hours per month across this workspace's free services; quotas, restarts, database cold starts and upstream failures still apply. No uptime SLA is claimed. Keep hosted access or complete local setup available throughout judging.
 
@@ -48,4 +50,4 @@ Show the merchant problem, then one synthetic conflicting-evidence case: inspect
 
 ## Connection troubleshooting
 
-A sample workspace intentionally has no access to the owner's PayPal merchant connection. The UI labels it Sample workspace and directs merchants to sign in with their own account. A new regular account starts empty and is not automatically linked. The deployment administrator must deliberately map the intended workspace; do not change the mapping to a disposable sample tenant. The owner-approved mapping to the replacement merchant account and a fresh sandbox import were verified October 31. Saved cases in older workspaces are not automatically migrated.
+Sign in to the intended merchant account. A new regular account starts empty and is not automatically linked to PayPal. The administrator must deliberately map the intended workspace; existing cases are not migrated automatically. PUBLIC_DEMO_ENABLED=false disables guest login, preset sample loading and existing sample-session access while preserving merchant cases. DEMO_MODE=true independently keeps submissions simulated.

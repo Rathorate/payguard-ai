@@ -2,7 +2,7 @@
 
 Licensed under [MIT](LICENSE), copyright 2026 Rathorate.
 
-**Try the hosted demo:** https://payguard-ai-frontend.vercel.app — choose **Open interactive demo** for isolated synthetic cases. [Judge guide and verified limits](docs/JUDGE_GUIDE.md). Backend: https://payguard-ai-ih99.onrender.com.
+**Hosted merchant app:** https://payguard-ai-frontend.vercel.app — sign in or create a merchant workspace. Guest demo access is disabled. New accounts start empty; cases you add/import persist in your account. [Judge guide and verified limits](docs/JUDGE_GUIDE.md). Backend: https://payguard-ai-ih99.onrender.com.
 
 [Evidence review and human decisions](docs/EVIDENCE_REVIEW.md): AI gap/conflict checks with exact source excerpts, inspectable draft citations, retained generation/edit/approval history, and a four-scenario synthetic AI evaluation script. These assist human judgment; they do not establish delivery or predict outcomes.
 
@@ -39,7 +39,7 @@ bash scripts/test.sh
 BACKEND_PORT=8001 FRONTEND_PORT=3000 bash scripts/dev.sh
 ```
 
-Open http://127.0.0.1:3000 and select **Open interactive demo**. Two separate processes run; Ctrl+C stops both. The launcher sets the local frontend Origin correctly even if an older `.env` contains port 8000. Demo mode needs no API keys and simulates every submission. Each demo workspace gets four synthetic disputes; regular account registration starts an empty workspace.
+Open http://127.0.0.1:3000 and sign in or create a merchant account. Two separate processes run; Ctrl+C stops both. The launcher sets the local frontend Origin correctly even if an older `.env` contains port 8000. `DEMO_MODE=true` simulates submissions; it does not enable guest access. `PUBLIC_DEMO_ENABLED=false` is the default. New merchant accounts start empty and retain their saved cases.
 
 On Windows, create/install a Python virtual environment, then run the backend and frontend in two PowerShell terminals:
 
@@ -52,6 +52,10 @@ $env:APP_ORIGIN='http://127.0.0.1:3000'
 $env:BACKEND_ORIGIN='http://127.0.0.1:8001'
 node frontend/dev-server.mjs
 ```
+
+## Ask AI from the dashboard
+
+Choose a dispute in **Case for AI chat**, then click **Ask AI**. The app opens that case and focuses **Your question**. Ask, for example, "Does this receipt prove delivery? What is missing?" Select **Include my saved draft** when you want the saved response reviewed. Answers use that case's evidence and cannot edit, approve or submit it. Conversation is temporary and clears on reload or case-version changes. AI can still be wrong; inspect source excerpts and review every response.
 
 ## Test
 

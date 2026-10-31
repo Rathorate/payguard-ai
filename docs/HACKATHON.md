@@ -8,6 +8,7 @@ Edit your existing, ignored `.env` in Ubuntu. Do not overwrite your database set
 
 ```dotenv
 DEMO_MODE=true
+PUBLIC_DEMO_ENABLED=false
 SECURE_COOKIES=false
 AI_PROVIDER=groq
 GROQ_API_KEY=your-key-here
@@ -28,11 +29,11 @@ Keep that terminal open. Ctrl+C stops both servers. Open http://127.0.0.1:3001 r
 
 The inbox now includes an **AI response assistant** panel even when there are no disputes. It shows the running backend's selected provider and model. **Test AI connection** sends synthetic text to the configured provider and displays its actual response without changing any dispute. A configured key is not treated as a verified connection until this test succeeds. The same safe check can be run from Ubuntu with `bash scripts/verify-ai.sh`; it loads the saved `.env`, never prints the key, and exits with an actionable error if the provider fails.
 
-If the panel still says **template** after you saved a Groq key, confirm `AI_PROVIDER=groq` in the backend `.env`, stop your existing development launcher with Ctrl+C, and restart it. The startup message reports the selected provider and whether a key was loaded. An existing running process does not reload changed environment variables. A fresh account starts empty; **Load 4 sample cases** fills only an empty workspace in demo mode and preserves existing records. Regular accounts show their email instead of being mislabeled as a sample workspace.
+If the panel still says **template** after you saved a Groq key, confirm `AI_PROVIDER=groq` in the backend `.env`, stop your existing development launcher with Ctrl+C, and restart it. The startup message reports the selected provider and whether a key was loaded. An existing running process does not reload changed environment variables. A fresh merchant account starts empty and retains cases you add/import. Guest entry and the preset loader are disabled by default. Developer-only sample regressions explicitly opt in with PUBLIC_DEMO_ENABLED=true on a disposable local configuration; this is separate from DEMO_MODE=true submission simulation.
 
 ## Test the human decision
 
-1. Open **Interactive demo**, then the Sam Rivera case. Seed data is synthetic and deadlines start relative to demo creation.
+1. Sign in or register a merchant account. Open a saved case or add a clearly fictional case with a future test deadline. Guest demo and preset loading are disabled by default.
 2. Expand the receipt. Add records from `fixtures/hackathon-evidence.json` through **Add a record**. You can also upload a text PDF, up to 5 MB / 20 pages / 8000 extracted characters.
 3. Generate a draft. Groq output is marked **GROQ**. Check that it acknowledges missing authorization and delivery proof; a model response is never a verified finding.
 4. Try **Approve response** without checking the review box: it must show a review error inside the dialog.

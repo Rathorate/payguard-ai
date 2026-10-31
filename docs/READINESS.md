@@ -6,7 +6,7 @@ Updated 31 October 2026. See [judge instructions](JUDGE_GUIDE.md), [launch check
 
 - Public repository with MIT license.
 - Separate Vercel frontend, Render API and dedicated Neon PostgreSQL database.
-- Credential-free, tenant-isolated synthetic demo; merchant registration starts an empty workspace.
+- Merchant sign-in/registration with tenant-scoped persistent cases. Guest login and preset sample loading are disabled by default; new merchant accounts start empty.
 - Actual PayPal sandbox authentication and import of PP-R-SLL-10194090. The owner-approved replacement workspace mapping was verified October 31. Older workspaces retain their saved cases but are not migrated automatically.
 - Groq evidence analysis, case Q&A and drafting; source excerpts, citation inspection and retained draft/edit/approval history.
 - Explicit review and version-bound approval, approved JSON packet export, separately confirmed simulated submission and locked response after submission.
@@ -23,7 +23,7 @@ Compare every statement with its source; recorded merchant statements are not in
 1. Rehearse one clearly labeled synthetic case through evidence, AI analysis, Q&A, editing, personal review, approval, packet download and simulated submission.
 2. Keep the actual sandbox case separate from fictional recording evidence. Its Inquiry observation offers escalation, not provide-evidence. Do not escalate merely to unlock a demonstration feature.
 3. Complete human assessments of the four synthetic AI scenarios. Do not derive an accuracy, time-saving or dispute-win metric from mechanical tests.
-4. Verify public demo access and prepare the public video and submission text. Describe actual PayPal reads separately from simulated submission.
+4. Verify merchant registration/sign-in and prepare the public video and submission text. Describe actual PayPal reads separately from simulated submission.
 5. Keep hosted access or complete local instructions available throughout judging. Free hosting, provider quotas and cold starts do not provide an uptime SLA.
 
 ## Production follow-up, outside the hackathon demo

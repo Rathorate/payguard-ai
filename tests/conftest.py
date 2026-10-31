@@ -4,7 +4,7 @@ import pytest
 # Regressions are offline and disposable even when launched from a configured
 # developer terminal. Intentional environment tests set their own values later.
 # Keep TEST_POSTGRES_URL: CI explicitly points it at a disposable database.
-for name in ('DATABASE_URL', 'DEMO_MODE', 'APP_ORIGIN', 'SECURE_COOKIES',
+for name in ('DATABASE_URL', 'DEMO_MODE', 'PUBLIC_DEMO_ENABLED', 'APP_ORIGIN', 'SECURE_COOKIES',
              'AI_PROVIDER', 'GROQ_API_KEY', 'GROQ_MODEL', 'GROQ_SCHEMA_RECOVERY', 'OPENAI_API_KEY', 'OPENAI_MODEL',
              'PAYPAL_ENVIRONMENT', 'PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET',
              'PAYPAL_WEBHOOK_ID', 'PAYPAL_TENANT_ID'):
@@ -16,7 +16,7 @@ from app.main import create_app
 
 @pytest.fixture
 def app(tmp_path):
-    return create_app(Settings(database_url='sqlite:///' + (tmp_path / 'test.db').as_posix(), demo=True))
+    return create_app(Settings(database_url='sqlite:///' + (tmp_path / 'test.db').as_posix(), demo=True, public_demo_enabled=True))
 
 
 @pytest.fixture

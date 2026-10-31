@@ -1,5 +1,7 @@
 # Separate frontend and backend deployments
 
+Current hosted access policy (31 October 2026): merchant sign-in/registration only. PUBLIC_DEMO_ENABLED=false disables guest login, preset loading and existing sample sessions. DEMO_MODE=true independently simulates PayPal submissions. Existing merchant cases persist. The dashboard Ask AI selector opens evidence-grounded chat for the chosen case. Any guest/sample flows described below are opt-in developer fixtures, not the hosted entry flow.
+
 Deployed on 23 October 2026: Vercel frontend + Render Free backend + a separate Neon database. See [the current judge guide](JUDGE_GUIDE.md) for live URLs and verified limits, and [reliability and monitoring](RELIABILITY_AND_MONITORING.md) for free-plan quotas and manual PayPal refresh.
 
 Deploy the same repository as two independently updated projects:

@@ -1,3 +1,7 @@
+export function publicDemoAvailable(config) {
+  return config.demo === true && config.public_demo_enabled === true;
+}
+
 export function clearIntegrationSettings(root = document) {
   for (const id of ['integration-cards', 'paypal-workspace', 'paypal-feedback', 'paypal-import-feedback']) {
     root.querySelector('#' + id).textContent = '';

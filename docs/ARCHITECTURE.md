@@ -1,5 +1,7 @@
 # Current deployment architecture
 
+Current hosted access policy (31 October 2026): merchant sign-in/registration only. PUBLIC_DEMO_ENABLED=false disables guest login, preset loading and existing sample sessions. DEMO_MODE=true independently simulates PayPal submissions. Existing merchant cases persist. The dashboard Ask AI selector opens evidence-grounded chat for the chosen case. Any guest/sample flows described below are opt-in developer fixtures, not the hosted entry flow.
+
 The frontend and backend are now independent deployment projects. See [DEPLOYMENT.md](DEPLOYMENT.md) for the current topology and auth transport. The static UI moved from static/ into frontend/public/. FastAPI no longer serves UI assets. The browser uses its frontend origin for /api/v1, which Vercel rewrites to Render/Railway; locally a streaming Node proxy provides the same route. SameSite=Strict cookies, CSRF, tenant isolation, review, evidence, audit and submission safeguards remain. The backend stays at the repository root in app/.
 
 The original product/data-model architecture below remains useful; references to one combined static/API deployment or static/ source paths are superseded by this update.

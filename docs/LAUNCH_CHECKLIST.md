@@ -23,7 +23,7 @@ Updated 31 October 2026. Historical development notes are in [VERIFICATION.md](V
 - [x] At the user's request, the assistant exercised approval, downloaded the packet, verified its checksum/version and completed simulated submission on the fictional recording case. This is a workflow test, not the owner's personal rating.
 - [ ] Before making quantitative AI-quality claims, complete human ratings for receipt-only, conflicting-delivery, authorization-missing and untrusted-instructions scenarios. No such claim is currently made.
 - [ ] Check recording audio/readability and that no credentials or private customer records appear.
-- [ ] Keep public demo access and local setup available throughout judging.
+- [ ] Keep merchant registration/sign-in and local setup available throughout judging.
 
 The imported PayPal case and synthetic recording case must remain separate. The synthetic case is fictional and must never be used as evidence for a real dispute. Automated rehearsal is not the user's personal approval.
 
@@ -41,4 +41,8 @@ Actual PayPal evidence acceptance, external signed webhook delivery/worker proce
 
 ## Latest rehearsal additions
 
-See [RECORDING_REHEARSAL.md](RECORDING_REHEARSAL.md). Three new synthetic review cases remain unapproved, alongside the completed simulation and separate imported inquiry. Credential-free public access was checked by signing out and opening a fresh sample workspace; it loaded four cases and hid merchant import controls. The merchant session was then restored with all five saved cases. The account-switch cleanup clears stale integration details before loading a different workspace; 16 frontend regressions pass locally.
+See [RECORDING_REHEARSAL.md](RECORDING_REHEARSAL.md). Three new synthetic review cases remain unapproved, alongside the completed simulation and separate imported inquiry. Historical check: credential-free public access loaded four cases and hid merchant import controls. The owner subsequently requested merchant-only access; guest login and preset loading are now disabled by default. The merchant session was then restored with all five saved cases. The account-switch cleanup clears stale integration details before loading a different workspace; The subsequent dashboard-chat and guest-access changes bring the frontend suite to 20 passing tests locally.
+
+## Merchant-only access and dashboard chat
+
+PUBLIC_DEMO_ENABLED=false independently disables guest entry, preset sample loading and existing sample sessions. Keep DEMO_MODE=true to preserve simulated submissions. Merchant accounts and their saved cases are retained. The dashboard's Case for AI chat selector and Ask AI button open the chosen case's evidence-grounded chat. See [judge instructions](JUDGE_GUIDE.md) for account-based access and a synthetic fixture recipe.
