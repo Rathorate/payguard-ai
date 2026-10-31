@@ -1,6 +1,7 @@
 import {renderWorkflow} from './workflow-ui.js';
 import {renderReview, revealEvidence} from './review-ui.js';
 import {questionPanel,renderConversation} from './questions-ui.js';
+import {paypalPresentation} from './integration-ui.js';
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const state = {csrf: '', user: null, demo: false, status: '', page: 1, q: '', detail: null, view: 'disputes', loadId: 0, ai: null};
@@ -111,14 +112,17 @@ async function loadView() {
     $('#audit-list').innerHTML = data.items.length ? data.items.map(x => `<div class="audit-row"><div>${escape(x.action.replaceAll('_',' ').toLowerCase())}<small>${escape(x.actor)} · ${escape(x.resource_id)}</small></div><time>${escape(new Date(x.created_at*1000).toLocaleString())}</time></div>`).join('') : '<div class="empty">Your workspace activity will appear here.</div>';
   } else {
     const data = await api('/integrations');
+    const paypal = paypalPresentation(data, state.user);
+    $('#paypal-connection-notice').textContent=paypal.message;
+    $('#paypal-setup-controls').hidden=!paypal.showSetup;
     $('#paypal-workspace').textContent=state.user.tenant_id;
     const cards = [
-      ['PayPal',data.paypal_configured,`Dispute ingestion and merchant evidence submission. Environment: ${data.paypal_environment}. ${state.demo ? 'Submission is simulated in demo mode.' : ''}`],
+      ['PayPal',paypal.configured,paypal.message,paypal.label],
       ['AI drafting',data.ai_configured,`Selected provider: ${data.ai_provider}. ${data.ai_message || ''} ${data.ai_model ? 'Model: '+data.ai_model : ''}`],
       ['Carrier verification',false,'Tracking statements can be recorded manually. No independent carrier verification is connected.'],
       ['Document extraction',true,'Text PDFs are supported. Scanned documents and images require a separate OCR service.']
     ];
-    $('#integration-cards').innerHTML = cards.map(([name,configured,description]) => `<div class="integration-card"><span class="badge ${configured?'APPROVED':''}">${configured?'Configured':'Not connected'}</span><h2>${escape(name)}</h2><p>${escape(description)}</p></div>`).join('');
+    $('#integration-cards').innerHTML = cards.map(([name,configured,description,label]) => `<div class="integration-card"><span class="badge ${configured?'APPROVED':''}">${escape(label || (configured?'Configured':'Not connected'))}</span><h2>${escape(name)}</h2><p>${escape(description)}</p></div>`).join('');
   }
 }
 

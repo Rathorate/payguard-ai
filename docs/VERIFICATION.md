@@ -183,3 +183,9 @@ Using the actual locally served frontend and backend:
 The first dependency resolver stalled during package metadata fetching; installation succeeded through standard PyPI using pip's legacy resolver. No TLS verification was disabled. An early test run could not access the default Windows pytest temp directory; pytest now uses a workspace-local base directory. Neither issue is represented as an application test failure in the final test report.
 
 The pinned Starlette TestClient emits a deprecation warning for its httpx integration. Tests pass; migration to its recommended test client can be done separately. No production code depends on TestClient.
+
+## 2026-10-31 PayPal connection status correction
+
+The sample workspace is isolated from the configured PayPal merchant. Integrations now explains that distinction and hides merchant connection/import controls for sample users. Other accounts receive separate workspace-unlinked and missing-credentials messages; configured credentials are explicitly not described as verified authentication. Existing server-side merchant checks remain enforced. No credentials, tenant mapping, cases or PayPal submissions are changed by this release.
+
+Validation: frontend account-state tests, backend mapping/credential status and cross-workspace rejection test, full offline Python suite, frontend suite and deployment asset checks. Real merchant authentication must be checked in the merchant session separately. Repository visibility was private on October 31; scanning current text files found only test/example password matches and is not a full history audit.

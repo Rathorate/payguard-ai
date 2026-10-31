@@ -561,7 +561,9 @@ def create_app(settings=None):
 
     @app.get('/api/v1/integrations')
     def integrations(who=Depends(principal)):
-        return {'mode': 'demo' if settings.demo else 'live', 'paypal_environment': settings.paypal_environment, 'paypal_configured': bool(settings.paypal_client_id and settings.paypal_secret and who[0].tenant_id == settings.paypal_tenant_id), 'webhook_configured': bool(settings.paypal_webhook_id), **settings.ai_status(), 'carrier_verification': False, 'ocr': False}
+        linked = who[0].tenant_id == settings.paypal_tenant_id
+        configured = bool(linked and settings.paypal_client_id and settings.paypal_secret)
+        return {'mode': 'demo' if settings.demo else 'live', 'paypal_environment': settings.paypal_environment, 'paypal_configured': configured, 'paypal_status': 'configured' if configured else ('credentials_missing' if linked else 'workspace_unlinked'), 'webhook_configured': bool(settings.paypal_webhook_id), **settings.ai_status(), 'carrier_verification': False, 'ocr': False}
 
     def sandbox_merchant(who):
         if settings.paypal_environment != 'sandbox':
@@ -569,7 +571,7 @@ def create_app(settings=None):
         if not settings.paypal_client_id or not settings.paypal_secret:
             raise HTTPException(409, 'Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET in the backend environment and restart it')
         if who[0].tenant_id != settings.paypal_tenant_id:
-            raise HTTPException(409, 'Set PAYPAL_TENANT_ID to your workspace ID shown in Integrations, then restart the backend')
+            raise HTTPException(409, 'This workspace is not linked to the PayPal merchant. Sign in with your merchant PayGuard account; the deployment administrator can review the merchant mapping if needed.')
 
     @app.post('/api/v1/integrations/paypal/check')
     def check_paypal(who=Depends(principal), db=Depends(db_session)):
