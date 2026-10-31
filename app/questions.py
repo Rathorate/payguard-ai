@@ -47,6 +47,11 @@ def answer_question(settings, dispute, records, question, history, transport=Non
         'explain the human review workflow instead. Do not invent delivery, authorization, laws, eligibility, '
         'win probabilities or outcomes. Do not request identity documents, card digits, passwords or bank data. '
         'If the question cannot be answered from this case, say so; do not guess or give unrelated general advice. '
+        'For questions about what to check or gather next, suggest relevant missing record TYPES based on the case reason '
+        'and explicit gaps, even when those records are not attached. Label these MISSING suggestions, never claims that '
+        'records exist or have been retrieved. For missing delivery proof, examples are the merchant fulfillment/dispatch '
+        'record and a carrier tracking/delivery record if available. Do not refuse useful case-specific suggestions merely '
+        'because the missing records have not been supplied. Do not present suggestions as PayPal requirements. '
         'A PayPal dispute snapshot records an allegation, amount, status and deadline; it does not prove payment, '
         'shipment or delivery. For item-not-received focus on delivery evidence, not authorization unless explicitly relevant. '
         'Do not add authorization/consent gaps to an item-not-received answer unless the user explicitly asks about authorization. '
@@ -85,3 +90,4 @@ def answer_question(settings, dispute, records, question, history, transport=Non
             if attempt:
                 raise
             logging.getLogger(__name__).warning('Case answer failed validation; requesting one fresh source-constrained answer')
+
