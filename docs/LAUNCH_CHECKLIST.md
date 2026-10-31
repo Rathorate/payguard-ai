@@ -1,50 +1,40 @@
 # PayGuard hackathon launch checklist
 
-## Completed locally
+Updated 31 October 2026. Historical development notes are in [VERIFICATION.md](VERIFICATION.md); current judge access is in [JUDGE_GUIDE.md](JUDGE_GUIDE.md).
 
-- [x] Actual sandbox OAuth, dispute list/read and import with matching seller app.
-- [x] Read-only workflow refresh shows INQUIRY and supported escalate action for PP-R-SLL-10194090. No provide-evidence action was returned in that observation.
-- [x] User added clearly labelled synthetic tracking, clearing the old draft and invalidating review at case version 3.
-- [x] Actual Groq evidence checks identified missing shipment/delivery proof, not verified delivery.
-- [x] Actual Groq draft at case version 4 explicitly describes fictional tracking and does not establish delivery.
-- [x] Actual Groq Q&A explains that the tracking reference demonstrates a workflow, with links to both sources.
-- [x] Unchecked human review acknowledgement blocks approval. The imported case remains unapproved.
-- [x] Previous application release 40c8762 passed GitHub Actions 39802191339, including PostgreSQL. Each later release requires its own CI result.
+## Completed and verified
 
-A later analysis request failed safely with provider code json_validate_failed and left the saved draft intact. The follow-up release shares the simpler passage-reference protocol already used by Q&A. Its live provider verification remains separate from offline regressions.
+- [x] Public repository and MIT license.
+- [x] Separate Vercel frontend / Render API / dedicated Neon PostgreSQL deployment.
+- [x] Exact frontend HTTPS origin, secure sessions and server-only provider credentials configured.
+- [x] Actual sandbox OAuth and dispute read/import with the matching seller app.
+- [x] Owner-approved replacement merchant workspace mapped; sandbox authentication and PP-R-SLL-10194090 import verified October 31.
+- [x] Inquiry observation shows escalation rather than evidence submission. No escalation or evidence write performed.
+- [x] Groq analysis, drafting and Q&A exercised with recorded sources.
+- [x] Previous hosted tests exercised review acknowledgement, version-bound approval, packet download/checksum and simulated submission.
+- [x] Hosted PDF extraction, invalid-PDF rejection and persistence recorded in verification notes.
+- [x] Latest code release a2d8a31 passed [CI 41193870893](https://github.com/Rathorate/payguard-ai/actions/runs/41193870893): 234 passing Python checks across the main and PostgreSQL steps; 14 frontend tests.
+- [x] Four-case live AI evaluation mechanically passed. This does not complete human quality ratings.
+- [x] UptimeRobot monitoring configured. Monitoring does not guarantee uninterrupted free hosting.
 
-## Human review gate
+## Final rehearsal and personal review
 
-- [ ] Read the exact latest saved draft and its source excerpts. Synthetic tracking is demonstration data, never evidence for a real dispute.
-- [ ] Correct inaccurate or irrelevant assertions; save before acknowledging approval.
-- [ ] Approve only the version actually reviewed. Then test packet download and, if desired, clearly simulated submission with DEMO_MODE=true.
-- [ ] Do not automatically escalate the sandbox case to unlock a feature. Escalation and available follow-up actions must be deliberately reviewed in PayPal.
+- [ ] Personally review the current recording-case draft against its synthetic sources, correct it and approve the exact saved version.
+- [ ] Download the approved packet and complete clearly simulated submission with DEMO_MODE=true.
+- [ ] Complete human quality checklists for receipt-only, conflicting-delivery, authorization-missing and untrusted-instructions scenarios.
+- [ ] Check recording audio/readability and that no credentials or private customer records appear.
+- [ ] Keep public demo access and local setup available throughout judging.
 
-## Deployment configuration, before creating resources
+The imported PayPal case and synthetic recording case must remain separate. The synthetic case is fictional and must never be used as evidence for a real dispute. Automated rehearsal is not the user's personal approval.
 
-Frontend: existing repository, root frontend, Vercel Other preset, server-side deployment BACKEND_ORIGIN set to the resulting backend HTTPS origin. Never put provider keys or database credentials in the frontend project.
+## Submission
 
-Backend: existing repository root, Python 3.12+, pip install -r requirements.txt, start uvicorn app.main:app --host 0.0.0.0 --port $PORT --no-proxy-headers, readiness /health/ready. DEMO_MODE=true, PAYPAL_ENVIRONMENT=sandbox, SECURE_COOKIES=true, APP_ORIGIN exactly the resulting frontend HTTPS origin. Use a separate managed PostgreSQL database, not local SQLite or another project's database. Preserve Groq settings privately on the backend. Map the newly hosted merchant workspace ID after account creation; the local SQLite workspace ID is not automatically the hosted workspace ID.
+- [x] Hosted app URL and source/setup links available in the README.
+- [x] Actual tool usage and integration limits documented.
+- [ ] Final project description and required Devpost fields checked against the organizer's current form.
+- [ ] Public YouTube demo under three minutes, recorded after the hosted rehearsal.
+- [ ] Video URL added and submission completed before the organizer's deadline.
 
-The confirmed Render workspace is My Workspace. Its existing free database cropgrid-staging-db belongs to another project. No PayGuard resource was present during read-only discovery. Choose a separate durable database and review any paid resource before creation. Render free web services can sleep and share workspace usage limits; free Render Postgres has a one-instance limit and 30-day expiry. A judge demo must remain available for the judging period. Current reference: https://render.com/docs/free
+## Deferred provider and production work
 
-- [ ] Choose hosting/database plan and review concrete recurring charges, if any.
-- [ ] Create isolated PayGuard services/database after configuration and funding decisions.
-- [ ] Add secrets privately; initialize new schema. Existing non-demo databases need versioned migrations, including 003.
-- [ ] Verify backend readiness, then frontend HTTPS login and session reload.
-- [ ] Verify exact Origin and CSRF enforcement through the hosted rewrite, upload, AI, edits, approval, packet export and simulated submission.
-- [ ] Verify restart persistence in managed PostgreSQL and provider quota/error states.
-- [ ] Provide an isolated judge account or explicit demo access with synthetic data, tools disclosure and instructions.
-
-## Webhook and actual PayPal writes
-
-Signed webhook acceptance and worker processing have offline transport regression coverage. Actual external delivery cannot be certified without an accessible backend URL and configured webhook ID. Configure the sandbox webhook only once the backend is reachable; verify signature, deduplication, queued processing and case version/approval invalidation. Decide whether a separate worker is in scope and review its hosting cost. Keep manual refresh available and avoid claiming live automatic synchronization until tested.
-
-Actual PayPal evidence acceptance remains unverified. Current case action availability blocks sending evidence. Recheck the authoritative provider response and required payload before any explicit sandbox write rehearsal. Never enable live-money operation for this hackathon demonstration.
-
-## Submission after the hosted rehearsal
-
-- [ ] Public source and MIT license, current architecture/API/setup documentation.
-- [ ] Actual app/tool usage and limitations accurately disclosed.
-- [ ] Real end-to-end demo story with measured observations, no invented savings/win rates.
-- [ ] Public YouTube video under three minutes, recorded after the hosted flow works.
+Actual PayPal evidence acceptance, external signed webhook delivery/worker processing, broad multi-merchant onboarding, account recovery, OCR, independent carrier verification, backup restoration and load capacity remain follow-up work. Keep DEMO_MODE=true. Do not claim automatic synchronization, provider acceptance, a won dispute or an uptime SLA.

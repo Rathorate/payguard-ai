@@ -1,59 +1,46 @@
 # PayGuard readiness and remaining gaps
 
-# Current hosted status — 23 October 2026
+Updated 31 October 2026. See [judge instructions](JUDGE_GUIDE.md), [launch checklist](LAUNCH_CHECKLIST.md) and [verification record](VERIFICATION.md).
 
-See [JUDGE_GUIDE.md](JUDGE_GUIDE.md) for current deployment, verified workflow and remaining limits. Earlier entries below record the development sequence and may describe checks that were pending at that time.
+## Verified hackathon MVP
 
-
-## Current hackathon status
-
-The core local demonstration is working: synthetic cases, evidence entry/text PDF import, a real Groq-generated case response, merchant edits, explicit review and approval, withdrawal/reapproval, approved JSON export, and clearly simulated PayPal submission.
-
-On 22 October 2026 the user ran scripts/verify-ai.sh successfully with Groq's openai/gpt-oss-20b. The running frontend on port 3001 also generated a real Groq response for a fresh synthetic case. The browser test then blocked unchecked approval, saved an edited response, approved/withdrew/reapproved it, blocked unchecked submission, and completed a simulation that locked the response. No real PayPal submission occurred.
-
-The real draft requested an unnecessary tax ID. It was edited out before the synthetic approval test. Drafting instructions now prohibit unnecessary identity/payment credentials and keep the response in the merchant's voice. This improves guidance, but does not certify model factual quality. Mandatory review remains necessary. Subsequent browser rehearsals verified actual Groq case Q&A and refreshed evidence checks; each generated response still requires human assessment.
+- Public repository with MIT license.
+- Separate Vercel frontend, Render API and dedicated Neon PostgreSQL database.
+- Credential-free, tenant-isolated synthetic demo; merchant registration starts an empty workspace.
+- Actual PayPal sandbox authentication and import of PP-R-SLL-10194090. The owner-approved replacement workspace mapping was verified October 31. Older workspaces retain their saved cases but are not migrated automatically.
+- Groq evidence analysis, case Q&A and drafting; source excerpts, citation inspection and retained draft/edit/approval history.
+- Explicit review and version-bound approval, approved JSON packet export, separately confirmed simulated submission and locked response after submission.
+- Hosted valid-PDF extraction, malformed-PDF rejection and persistence checks recorded in the verification documents.
+- Release a2d8a31: [CI 41193870893](https://github.com/Rathorate/payguard-ai/actions/runs/41193870893) passed 232 main-suite Python tests plus two dedicated PostgreSQL tests, and 14 frontend tests. Locally the two PostgreSQL tests were skipped. A non-failing Starlette TestClient deprecation warning remains.
+- User's four-case live AI evaluation passed mechanical checks. Human quality ratings remain pending; an assistant review is not a human assessment.
 
 ## What the human does
 
-New evidence-review tooling is documented in EVIDENCE_REVIEW.md: version-bound AI findings with exact excerpts, paragraph-level citation inspection, server rejection of unknown references, retained generated/edit/approval history and a synthetic evaluation runner. Live Groq Q&A and evidence refresh have been rehearsed on the imported sandbox case; exact citations are not proof of factual entailment. Existing older responses have no retroactive revision history. Responsive layout checks passed at 390 px and 1024 px viewports; hosted verification remains pending.
+Compare every statement with its source; recorded merchant statements are not independently verified delivery or authorization. Edit and save the response, then approve only the exact version personally reviewed. Changes to evidence or draft invalidate approval. A separate acknowledgement is required for simulation. These are account-level review controls, not an independent two-person approval system; the application cannot prove someone read the evidence.
 
-1. Compare every claim with the actual evidence and check the provider deadline.
-2. Edit or replace the response when evidence is incomplete, inaccurate or irrelevant. A receipt alone does not establish delivery or authorization.
-3. Save the response, check the review acknowledgement, and approve its exact current version.
-4. Withdraw approval to reconsider. Evidence or draft changes require another approval.
-5. Make a separate submission acknowledgement. Demo submissions remain simulations.
+## Before recording and submission
 
-The server independently enforces versions, approval and confirmation; hiding or bypassing a browser button does not bypass those checks. The audit records the account performing an action. This is a single-merchant review workflow, not independent approval by a second employee. The application cannot prove that someone actually read the evidence.
+1. Rehearse one clearly labeled synthetic case through evidence, AI analysis, Q&A, editing, personal review, approval, packet download and simulated submission.
+2. Keep the actual sandbox case separate from fictional recording evidence. Its Inquiry observation offers escalation, not provide-evidence. Do not escalate merely to unlock a demonstration feature.
+3. Complete human assessments of the four synthetic AI scenarios. Do not derive an accuracy, time-saving or dispute-win metric from mechanical tests.
+4. Verify public demo access and prepare the public video and submission text. Describe actual PayPal reads separately from simulated submission.
+5. Keep hosted access or complete local instructions available throughout judging. Free hosting, provider quotas and cold starts do not provide an uptime SLA.
 
-Review edits now have Keep editing/Discard edits protection. Case controls are locked while a request is pending, including while the UI reloads a saved case, so a slow generation cannot overwrite newly typed edits. Out-of-order case loads cannot replace the most recently opened case.
+## Production follow-up, outside the hackathon demo
 
-## Priorities
+| Gap | Required work |
+|---|---|
+| Account recovery and onboarding | Email verification, password recovery and deliberate multi-merchant connection onboarding. New accounts do not inherit the configured seller connection. |
+| Real PayPal writes | Validate permitted account-specific payloads, signed webhooks, provider transitions, ambiguous-result reconciliation and actual evidence acceptance in sandbox before enabling real submissions. |
+| Operations and customer data | Retention/deletion policy, tested backups/restores, abuse and cost controls, secret rotation and operational alert handling. |
+| Evidence verification | Original-document storage with access controls, scanned-document OCR, carrier integration and source provenance. Current PDF uploads extract text only. |
+| Scale | Load tests, query/index analysis, connection limits and durable job capacity. Millions of users have not been demonstrated. |
+| Independent approval | Explicit roles and distinct reviewer identity if a two-person approval policy is needed. |
 
-| Priority | Gap | What bridges it |
-|---|---|---|
-| Before the hackathon presentation | Repeatable demo and AI quality checks | Rehearse received/not-received, unauthorized, incomplete and contradictory evidence. Check citations, unsupported claims, irrelevant requests and missing facts. Keep synthetic fixtures and a template fallback. |
-| Before public hosting | Actual cloud verification | Deploy separate frontend/API, configure exact HTTPS origin and secure cookies, managed PostgreSQL, server-only keys, health checks and provider limits. Test login, upload, draft, review, export and simulation through the hosted frontend. Local proxy tests do not establish cloud behavior. |
-| Before accepting real customer data | Account recovery, access controls and data lifecycle | Email verification/password recovery, team roles if needed, retention/deletion policy, tested backups/restores, operational alerts, secret rotation and abuse/cost controls appropriate to public traffic. |
-| Before real PayPal submission | Account-specific API integration validation | Sandbox authentication, dispute list/read and import now work with the matching seller app. Validate permitted writes, signed webhooks, notes limits, provider status transitions and ambiguous-result reconciliation. Keep the manual packet/simulation until this is done. |
-| If two-person approval is required | Reviewer separation | Add explicit roles, distinct reviewer identity and an enforced second-person approval policy. Do not describe the current acknowledgement as independent review. |
-| If stronger evidence handling is required | Source documents and verification | Object storage/original-file retention with access controls, OCR for scanned PDFs, carrier verification and source provenance. Current uploaded PDFs produce extracted text only. |
-| Before substantial scale | Measured capacity and operations | Load testing, indexes/query analysis, bounded database connections, rate-limit/proxy behavior under real hosting, AI concurrency/cost limits and durable job processing as needed. Millions of users have not been demonstrated. |
+## Database and migration limits
 
-## Existing database note
+Demo-mode startup can create additive tables; existing non-demo databases need documented migrations, including 001 audit actor width and 003 workflow observations. This is not a full migration system. Back up before migrations.
 
-Audit actor length now matches the accepted email length (254 characters). Fresh PostgreSQL schemas use the corrected width. For an older PostgreSQL database, back it up and apply docs/migrations/001_audit_actor_length.sql before using this build. SQLite needs no length alteration. Broader versioned migrations remain a production follow-up; this one repair is not a complete migration system.
+## AI and integration limits
 
-## Remaining explicit limitations
-
-There is one configured PayPal merchant per deployment, no reconciliation UI for unknown submissions, no original-file retention or image OCR, no carrier proof verification, and no proven million-user capacity. The Starlette TestClient/httpx warning is non-failing development tooling noise; dependency modernization can be done separately with its own regression run.
-
-The hackathon requires meaningful PayPal developer platform integration. AI and human judgment can be rehearsed offline, but CSV/manual cases and simulation alone should not be assumed sufficient. Verify an actual sandbox dispute read and demonstrate its data flowing through AI drafting and human review. Confirm eligibility with organizers; avoid claiming provider acceptance or a dispute win.
-
-The user completed a sandbox purchase and created dispute PP-R-SLL-10194090. Actual sandbox OAuth, dispute list/read and local import were verified with the matching seller app. This establishes read access, not accepted evidence submission or a dispute win. See PAYPAL_SANDBOX.md. The approved MIT license is included.
-
-## Next action and evidence preparation
-
-Each case now exposes a deterministic next-action panel and source-linked checklist. Read-only provider observations are stored separately from evidence; refreshing never changes draft, case version or human approval. Provider fact changes are warnings and block a real send until reconciled. Available action names require matching official HTTPS action links; the server never follows arbitrary provider URLs. Five-minute staleness is visible. Demo cases have honest local-only states.
-
-This is an incremental preparation feature, not automatic synchronization, a carrier-verification service or a completeness assessment. Other PayPal actions remain informational. Existing demo databases gain the additive table at startup. Existing non-demo databases need migration 003 before the new API starts.
-
+AI may omit relevant gaps, generate irrelevant advice, or fail despite schema recovery. Known references and exact excerpts establish source text, not factual entailment. Failed requests preserve saved drafts/reports. Human review remains necessary. The deployment supports one connected PayPal merchant, notes-only provider submission, manual refresh, no reconciliation UI, no independent carrier verification and no image OCR. Do not claim real evidence acceptance, Seller Protection eligibility, money recovery or perfect accuracy.
