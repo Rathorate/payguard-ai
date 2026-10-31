@@ -4,7 +4,7 @@ import pytest
 from conftest import first_case
 from app.config import Settings
 from app.providers import ProviderError, ProviderHTTPError
-from app.questions import answer_question
+from app.questions import answer_question, validate_answer
 
 
 def test_invalid_completed_answer_gets_one_fresh_validated_attempt(monkeypatch):
@@ -52,3 +52,26 @@ def test_provider_failures_do_not_trigger_answer_validation_retry(monkeypatch,fa
     with pytest.raises(ProviderError):
         answer_question(Settings(ai_provider='groq'),case,records,'What is missing?',[])
     assert len(calls)==1
+
+
+def test_payment_receipt_cannot_be_returned_as_recorded_authorization(monkeypatch):
+    records=[SimpleNamespace(id='e1',title='Receipt',content='Synthetic receipt records a payment of ten dollars only.')]
+    case=SimpleNamespace(paypal_id='PP-D-TEST',reason='INQUIRY',amount_cents=1000,currency='USD')
+    calls=[]
+    def generate(settings,instructions,*args,**kwargs):
+        calls.append(instructions)
+        statement='The payment was authorized and recorded.' if len(calls)==1 else 'The receipt records a payment only.'
+        return json.dumps({'findings':[{'category':'RECORDED','statement':statement,'source_refs':['S1']}]}),'GROQ'
+    monkeypatch.setattr('app.questions.generate_text',generate)
+    report,_=answer_question(Settings(ai_provider='groq'),case,records,'What does this prove?',[])
+    assert len(calls)==2 and 'does not establish authorization' in calls[1]
+    assert report['findings'][0]['statement']=='The receipt records a payment only.'
+
+
+def test_authorization_uncertainty_is_allowed_but_not_an_unsourced_recorded_fact():
+    records=[SimpleNamespace(id='e1',title='Receipt',content='Synthetic payment receipt only.')]
+    report={'findings':[{'category':'MISSING','statement':'Authorization is not established by this payment receipt.','sources':[]}]}
+    assert validate_answer(report,records)==report
+    report['findings'][0]={'category':'RECORDED','statement':'The payment was authorized.','sources':[{'evidence_id':'e1','quote':records[0].content}]}
+    with pytest.raises(ProviderError,match='authorization absent'):
+        validate_answer(report,records)

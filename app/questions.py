@@ -1,6 +1,7 @@
 """Read-only, case-scoped questions with exact source excerpts."""
 import json
 import logging
+import re
 from .providers import ProviderError, generate_text
 from .review import validate_analysis
 
@@ -22,6 +23,11 @@ def validate_answer(report, records):
     report=validate_analysis(json.dumps(report), records)
     if len(report['findings'])>6:
         raise ProviderError('AI answer is too long; no case was changed. Ask a narrower question.')
+    authorization = r'\b(?:authori[sz](?:ed|ation)|consent)\b'
+    for finding in report['findings']:
+        if (finding['category']=='RECORDED' and re.search(authorization, finding['statement'], re.I)
+                and not any(re.search(authorization, source['quote'], re.I) for source in finding['sources'])):
+            raise ProviderError('AI answer attributed authorization absent from its source excerpts; no case was changed.')
     return report
 
 
@@ -67,6 +73,8 @@ def answer_question(settings, dispute, records, question, history, transport=Non
             prompt += (' A previous response failed structural/source validation. Generate a fresh answer from the supplied evidence only. '
                        'Return one to six findings and use only these exact source_refs: '+', '.join(p['ref'] for p in passages)+
                        '. Do not repeat a ref within one finding. MISSING may use an empty source_refs array. '
+                       'A payment receipt does not establish authorization or consent. Attribute recorded payment only; '
+                       'express missing authorization as MISSING rather than a recorded fact. '
                        'Do not invent IDs, quotes, keys or actions.')
         # Provider failures (including quotas/timeouts) escape without a retry.
         # Only an invalid, completed read-only answer gets one fresh attempt.

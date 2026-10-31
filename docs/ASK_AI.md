@@ -17,3 +17,5 @@ The chat uses only the selected case's saved evidence, limited recent conversati
 Completed answers that fail structural/source validation get at most one fresh source-constrained generation attempt, with source validators still enforced. Provider failures and quotas are not retried by this mechanism. Existing provider schema recovery may also run. Repeated invalid answers fail closed and do not change the case. This improves format reliability, not factual accuracy. No perfect response-quality claim is made.
 
 PUBLIC_DEMO_ENABLED=false disables guest access and preset sample loading. DEMO_MODE=true independently keeps submissions simulated. Your merchant cases persist and new merchant accounts start empty.
+
+A live rehearsal caught a receipt-only answer incorrectly describing payment as authorized. A targeted check now rejects RECORDED authorization/consent language when the linked source excerpts do not mention those concepts, allowing the existing single fresh-answer attempt. Missing authorization can be explained as uncertainty. This is a narrow guard for the observed error; a word appearing in an excerpt does not establish consent or factual correctness.
